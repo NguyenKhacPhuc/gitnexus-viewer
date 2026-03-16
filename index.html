@@ -3,201 +3,178 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GitNexus Flow Viewer</title>
-<script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sigma@2.4.0/build/sigma.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/dist/graphology-layout-forceatlas2.umd.min.js"></script>
+<title>GitNexus App Flow</title>
+<script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --bg: #1e1e1e; --bg2: #252526; --bg3: #2d2d30; --bg4: #3c3c3c;
-    --border: #3c3c3c; --text: #d4d4d4; --text2: #9d9d9d; --text3: #6a6a6a;
-    --accent: #0078d4; --accent2: #1a8cef;
+    --bg: #1a1a2e; --bg2: #16213e; --bg3: #1e2a4a; --bg4: #2a3a5c;
+    --border: #2a3a5c; --text: #e0e0e0; --text2: #8892b0; --text3: #5a6785;
+    --accent: #64ffda; --accent2: #7c83ff;
   }
-  html, body { height: 100%; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif;
+  html, body { height: 100%; overflow: hidden; font-family: 'Inter','Segoe UI',system-ui,sans-serif;
     font-size: 13px; background: var(--bg); color: var(--text); }
 
-  /* ── Load Screen ─────────────────────────────────────── */
+  /* ── Load Screen ──────────────────────────────────── */
   #load-screen {
     position: fixed; inset: 0; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 24px; z-index: 100; background: var(--bg);
   }
-  #load-screen h1 { font-size: 22px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-  #load-screen h1 span { color: var(--accent2); }
+  #load-screen h1 { font-size: 24px; font-weight: 700; }
+  #load-screen h1 span { color: var(--accent); }
   .drop-zone {
-    width: 420px; border: 2px dashed var(--border); border-radius: 8px;
-    padding: 36px 24px; text-align: center; cursor: pointer; transition: all .2s;
+    width: 420px; border: 2px dashed var(--border); border-radius: 12px;
+    padding: 40px 24px; text-align: center; cursor: pointer; transition: all .2s;
   }
-  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent2); background: rgba(0,120,212,.08); }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: rgba(100,255,218,.04); }
   .drop-zone p { color: var(--text2); margin-top: 8px; font-size: 12px; }
   .or-divider { color: var(--text3); font-size: 11px; letter-spacing: 1px; }
   .url-row { display: flex; gap: 8px; width: 420px; }
   .url-row input { flex: 1; background: var(--bg3); border: 1px solid var(--border);
-    color: var(--text); border-radius: 4px; padding: 7px 10px; font-size: 13px; outline: none; }
-  .url-row input:focus { border-color: var(--accent2); }
-  .btn { background: var(--accent); color: #fff; border: none; border-radius: 4px;
-    padding: 7px 14px; font-size: 13px; cursor: pointer; white-space: nowrap; transition: background .15s; }
-  .btn:hover { background: var(--accent2); }
-  .btn:disabled { background: var(--bg4); color: var(--text3); cursor: not-allowed; }
-  #load-error { color: #e06c75; font-size: 12px; display: none; }
+    color: var(--text); border-radius: 6px; padding: 8px 12px; font-size: 13px; outline: none; }
+  .url-row input:focus { border-color: var(--accent); }
+  .btn { background: var(--accent); color: var(--bg); border: none; border-radius: 6px;
+    padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
+  .btn:hover { filter: brightness(1.1); }
+  #load-error { color: #ff6b6b; font-size: 12px; display: none; }
 
-  /* ── App Layout ──────────────────────────────────────── */
+  /* ── App ──────────────────────────────────────────── */
   #app { display: none; height: 100vh; flex-direction: column; }
   #app.visible { display: flex; }
 
-  /* Toolbar */
-  #toolbar { height: 40px; background: var(--bg2); border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; gap: 8px; padding: 0 12px; flex-shrink: 0; }
-  #toolbar .title { font-weight: 600; color: var(--accent2); margin-right: 8px; }
+  #toolbar { height: 44px; background: var(--bg2); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; padding: 0 16px; flex-shrink: 0; }
+  #toolbar .title { font-weight: 700; font-size: 14px; }
+  #toolbar .title span { color: var(--accent); }
   .tb-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
-  #stats { color: var(--text2); font-size: 11px; margin-left: auto; }
-  .icon-btn { background: none; border: 1px solid transparent; border-radius: 3px; color: var(--text2);
-    padding: 3px 8px; cursor: pointer; font-size: 12px; transition: all .15s; }
-  .icon-btn:hover { background: var(--bg4); border-color: var(--border); color: var(--text); }
-  .icon-btn.active { background: var(--bg4); border-color: var(--accent); color: var(--accent2); }
-  #breadcrumb { font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 4px; }
-  #breadcrumb .bc-link { color: var(--accent2); cursor: pointer; }
-  #breadcrumb .bc-link:hover { text-decoration: underline; }
-  #breadcrumb .bc-sep { color: var(--text3); }
+  .icon-btn { background: none; border: 1px solid transparent; border-radius: 6px; color: var(--text2);
+    padding: 4px 10px; cursor: pointer; font-size: 12px; transition: all .15s; }
+  .icon-btn:hover { background: var(--bg3); color: var(--text); }
+  .icon-btn.active { background: var(--bg3); border-color: var(--accent); color: var(--accent); }
+  #stats { color: var(--text3); font-size: 11px; margin-left: auto; }
+  #view-tabs { display: flex; gap: 2px; background: var(--bg); border-radius: 6px; padding: 2px; }
+  .tab-btn { padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer;
+    font-size: 11px; font-weight: 600; background: transparent; color: var(--text3); transition: all .15s; }
+  .tab-btn.active { background: var(--bg3); color: var(--accent); }
+  .tab-btn:hover { color: var(--text); }
 
-  /* Main */
   #main { flex: 1; display: flex; overflow: hidden; }
 
-  /* ── Feature List (left panel) ───────────────────────── */
-  #feature-list {
-    width: 280px; background: var(--bg2); border-right: 1px solid var(--border);
-    display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
-  }
-  .panel-header { padding: 8px 12px; font-size: 11px; font-weight: 600; color: var(--text2);
-    text-transform: uppercase; letter-spacing: .8px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-  #feature-search { width: calc(100% - 16px); margin: 8px; background: var(--bg3);
-    border: 1px solid var(--border); color: var(--text); border-radius: 4px;
-    padding: 5px 8px; font-size: 12px; outline: none; flex-shrink: 0; }
-  #feature-search:focus { border-color: var(--accent2); }
-  #feature-items { flex: 1; overflow-y: auto; padding: 4px 8px; }
-  #feature-items::-webkit-scrollbar { width: 6px; }
-  #feature-items::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+  /* ── Left Panel ──────────────────────────────────── */
+  #left-panel { width: 260px; background: var(--bg2); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
+  .panel-header { padding: 10px 14px; font-size: 10px; font-weight: 700; color: var(--text3);
+    text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--border); }
+  #module-search { width: calc(100% - 16px); margin: 8px; background: var(--bg3);
+    border: 1px solid var(--border); color: var(--text); border-radius: 6px;
+    padding: 6px 10px; font-size: 12px; outline: none; }
+  #module-search:focus { border-color: var(--accent); }
+  #module-list { flex: 1; overflow-y: auto; padding: 4px 8px; }
+  #module-list::-webkit-scrollbar { width: 5px; }
+  #module-list::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
 
-  .feature-card {
-    padding: 10px 12px; border-radius: 6px; cursor: pointer; margin-bottom: 4px;
-    border: 1px solid transparent; transition: all .15s;
-  }
-  .feature-card:hover { background: var(--bg3); border-color: var(--border); }
-  .feature-card.active { background: var(--bg3); border-color: var(--accent); }
-  .feature-card .fc-name { font-weight: 600; font-size: 13px; margin-bottom: 4px;
-    display: flex; align-items: center; gap: 6px; }
-  .feature-card .fc-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-  .feature-card .fc-meta { font-size: 11px; color: var(--text3); display: flex; gap: 12px; }
-  .feature-card .fc-bar { height: 3px; border-radius: 2px; margin-top: 6px; opacity: 0.6; }
+  .module-card { padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 3px;
+    border: 1px solid transparent; transition: all .15s; }
+  .module-card:hover { background: var(--bg3); }
+  .module-card.active { background: var(--bg3); border-color: var(--accent); }
+  .module-card.highlighted { background: rgba(100,255,218,.08); }
+  .mc-name { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .mc-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .mc-meta { font-size: 10px; color: var(--text3); margin-top: 3px; padding-left: 18px; }
+  .mc-layer { font-size: 9px; padding: 1px 6px; border-radius: 3px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .5px; }
 
-  /* ── Graph Canvas ────────────────────────────────────── */
-  #sigma-container { flex: 1; position: relative; background: var(--bg); }
-  #zoom-controls { position: absolute; bottom: 16px; right: 16px; display: flex;
+  /* ── Canvas ──────────────────────────────────────── */
+  #canvas-wrap { flex: 1; position: relative; overflow: hidden; background: var(--bg); }
+  #flow-canvas { width: 100%; height: 100%; cursor: grab; }
+  #flow-canvas:active { cursor: grabbing; }
+  #canvas-controls { position: absolute; bottom: 16px; right: 16px; display: flex;
     flex-direction: column; gap: 4px; }
-  .zoom-btn { width: 28px; height: 28px; background: var(--bg2); border: 1px solid var(--border);
-    border-radius: 4px; color: var(--text); font-size: 16px; cursor: pointer;
+  .ctrl-btn { width: 32px; height: 32px; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-size: 16px; cursor: pointer;
     display: flex; align-items: center; justify-content: center; transition: all .15s; }
-  .zoom-btn:hover { background: var(--bg4); border-color: var(--accent); }
-  #loading-overlay { position: absolute; inset: 0; display: none; flex-direction: column;
-    align-items: center; justify-content: center; background: rgba(30,30,30,.85); gap: 12px; }
-  .spinner { width: 36px; height: 36px; border: 3px solid var(--bg4);
-    border-top-color: var(--accent2); border-radius: 50%; animation: spin .7s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  #loading-overlay p { color: var(--text2); font-size: 12px; }
-  #graph-hint { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-    color: var(--text3); font-size: 14px; pointer-events: none; text-align: center; }
+  .ctrl-btn:hover { background: var(--bg3); border-color: var(--accent); }
 
-  /* ── Detail Panel (right) ────────────────────────────── */
+  /* ── Detail Panel ────────────────────────────────── */
   #detail-panel { width: 300px; background: var(--bg2); border-left: 1px solid var(--border);
     display: none; flex-direction: column; overflow: hidden; flex-shrink: 0; }
   #detail-panel.visible { display: flex; }
-  #detail-close { background: none; border: none; color: var(--text2); cursor: pointer;
-    font-size: 16px; padding: 2px 6px; border-radius: 3px; }
-  #detail-close:hover { color: var(--text); background: var(--bg4); }
   .detail-header { display: flex; align-items: center; justify-content: space-between;
-    padding: 8px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-  .detail-type-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px;
-    text-transform: uppercase; letter-spacing: .5px; }
-  .detail-name { font-size: 13px; font-weight: 600; padding: 10px 12px 4px; word-break: break-all; }
-  .detail-meta { padding: 0 12px 8px; color: var(--text2); font-size: 11px; line-height: 1.6;
-    border-bottom: 1px solid var(--border); }
-  .detail-meta span { color: var(--text3); }
-  .detail-code { margin: 8px 12px; background: var(--bg3); border: 1px solid var(--border);
-    border-radius: 4px; overflow: hidden; }
-  .detail-code pre { padding: 8px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
-    font-size: 11px; color: var(--text); overflow: auto; max-height: 200px; line-height: 1.5; white-space: pre; }
+    padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  #detail-close { background: none; border: none; color: var(--text3); cursor: pointer;
+    font-size: 16px; padding: 2px 6px; border-radius: 4px; }
+  #detail-close:hover { background: var(--bg3); color: var(--text); }
   .detail-scroll { flex: 1; overflow-y: auto; }
-  .detail-scroll::-webkit-scrollbar { width: 6px; }
+  .detail-scroll::-webkit-scrollbar { width: 5px; }
   .detail-scroll::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
-  .conn-section { padding: 8px 12px; }
-  .conn-title { font-size: 10px; font-weight: 700; color: var(--text3); text-transform: uppercase;
-    letter-spacing: .6px; margin-bottom: 4px; }
-  .conn-list { display: flex; flex-direction: column; gap: 1px; }
-  .conn-item { display: flex; align-items: center; gap: 6px; padding: 4px 6px;
-    border-radius: 3px; cursor: pointer; font-size: 11px; }
-  .conn-item:hover { background: var(--bg3); }
-  .conn-item .rel-type { color: var(--text3); font-size: 10px; flex-shrink: 0; }
-  .conn-item .node-name { color: var(--accent2); flex: 1; overflow: hidden;
-    text-overflow: ellipsis; white-space: nowrap; }
+  .d-title { font-size: 15px; font-weight: 700; padding: 12px 14px 4px; }
+  .d-badge { display: inline-block; font-size: 9px; font-weight: 700; padding: 2px 8px;
+    border-radius: 4px; text-transform: uppercase; letter-spacing: .5px; margin-left: 8px; }
+  .d-section { padding: 8px 14px; }
+  .d-section-title { font-size: 10px; font-weight: 700; color: var(--text3); text-transform: uppercase;
+    letter-spacing: .6px; margin-bottom: 6px; }
+  .d-item { padding: 5px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;
+    display: flex; align-items: center; gap: 8px; color: var(--text2); }
+  .d-item:hover { background: var(--bg3); color: var(--text); }
+  .d-item .d-arrow { color: var(--accent); font-size: 10px; flex-shrink: 0; }
+  .d-files { font-size: 11px; color: var(--text3); padding: 2px 8px; }
 
-  /* ── Legend ───────────────────────────────────────────── */
-  #legend { position: absolute; bottom: 16px; left: 16px; background: var(--bg2);
-    border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;
-    font-size: 10px; display: flex; flex-wrap: wrap; gap: 6px 14px; max-width: 320px; }
-  .legend-item { display: flex; align-items: center; gap: 4px; }
-  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+  /* ── Legend ───────────────────────────────────────── */
+  #legend { position: absolute; top: 12px; left: 12px; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px; font-size: 10px; display: flex; flex-direction: column; gap: 4px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-box { width: 14px; height: 10px; border-radius: 2px; flex-shrink: 0; }
 </style>
 </head>
 <body>
 
-<!-- Load Screen -->
 <div id="load-screen">
-  <h1>Git<span>Nexus</span> Flow Viewer</h1>
+  <h1>App <span>Flow</span> Viewer</h1>
+  <p style="color:var(--text2);margin-bottom:8px">Visualize your app's feature flow from GitNexus data</p>
   <div class="drop-zone" id="drop-zone">
     <div style="font-size:36px;margin-bottom:8px">📂</div>
     <strong>Drop graph.json here</strong>
-    <p>or click to browse file</p>
+    <p>or click to browse</p>
     <input type="file" id="file-input" accept=".json" style="display:none">
   </div>
-  <div class="or-divider">— OR CONNECT TO SERVER —</div>
+  <div class="or-divider">— OR CONNECT —</div>
   <div class="url-row">
-    <input type="text" id="url-input" placeholder="http://127.0.0.1:4747/api/graph" value="http://127.0.0.1:4747/api/graph">
+    <input type="text" id="url-input" value="http://127.0.0.1:4747/api/graph">
     <button class="btn" id="fetch-btn">Connect</button>
   </div>
   <div id="load-error"></div>
 </div>
 
-<!-- App -->
 <div id="app">
   <div id="toolbar">
-    <span class="title">GitNexus Flow</span>
+    <span class="title">App <span>Flow</span></span>
     <div class="tb-sep"></div>
-    <div id="breadcrumb"><span class="bc-link" id="bc-overview">All Features</span></div>
+    <div id="view-tabs">
+      <button class="tab-btn active" data-view="feature">Features</button>
+      <button class="tab-btn" data-view="layer">Layers</button>
+    </div>
     <div class="tb-sep"></div>
-    <button class="icon-btn" id="btn-labels">Labels</button>
-    <button class="icon-btn" id="btn-layout">Re-layout</button>
     <button class="icon-btn" id="btn-load">Load New</button>
-    <div id="stats" style="margin-left:auto"></div>
+    <div id="stats"></div>
   </div>
   <div id="main">
-    <div id="feature-list">
-      <div class="panel-header">Features / Clusters</div>
-      <input type="text" id="feature-search" placeholder="Search features…">
-      <div id="feature-items"></div>
+    <div id="left-panel">
+      <div class="panel-header">Modules</div>
+      <input type="text" id="module-search" placeholder="Search modules…">
+      <div id="module-list"></div>
     </div>
-    <div id="sigma-container">
-      <div id="loading-overlay"><div class="spinner"></div><p id="loading-text">Loading…</p></div>
-      <div id="graph-hint">Select a feature to view its flow</div>
-      <div id="zoom-controls">
-        <button class="zoom-btn" id="btn-zoom-in" title="Zoom in">+</button>
-        <button class="zoom-btn" id="btn-zoom-out" title="Zoom out">−</button>
-        <button class="zoom-btn" id="btn-zoom-reset" title="Fit">⊡</button>
-      </div>
+    <div id="canvas-wrap">
+      <canvas id="flow-canvas"></canvas>
       <div id="legend"></div>
+      <div id="canvas-controls">
+        <button class="ctrl-btn" id="btn-zin">+</button>
+        <button class="ctrl-btn" id="btn-zout">−</button>
+        <button class="ctrl-btn" id="btn-fit" style="font-size:11px">⊡</button>
+      </div>
     </div>
     <div id="detail-panel">
       <div class="detail-header">
-        <span class="panel-header" style="border:none;padding:0">Detail</span>
+        <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Module Detail</span>
         <button id="detail-close">✕</button>
       </div>
       <div class="detail-scroll" id="detail-content"></div>
@@ -206,37 +183,45 @@
 </div>
 
 <script>
-// ── Colors ──────────────────────────────────────────────────────────────
-const NODE_COLORS = {
-  File:'#4FC1FF', Folder:'#C5A5C5', Function:'#98C379', Class:'#C678DD',
-  Interface:'#E5C07B', Method:'#61AFEF', Community:'#E5915C', Process:'#E06C75',
-  Variable:'#56B6C2', Module:'#D19A66', Enum:'#E5C07B', Field:'#ABB2BF'
+// ── Layer classification ────────────────────────────────────────────────
+const LAYER_CONFIG = {
+  feature:  { color: '#64ffda', rank: 0, label: 'Feature' },
+  core:     { color: '#7c83ff', rank: 1, label: 'Core' },
+  data:     { color: '#ffd166', rank: 2, label: 'Data' },
+  platform: { color: '#ff6b6b', rank: 3, label: 'Platform' },
+  app:      { color: '#a78bfa', rank: 4, label: 'App' },
+  other:    { color: '#8892b0', rank: 5, label: 'Other' }
 };
-const EDGE_COLORS = {
-  CALLS:'#98C379', IMPORTS:'#61AFEF', EXTENDS:'#C678DD', IMPLEMENTS:'#E5C07B',
-  MEMBER_OF:'#E5915C', CONTAINS:'#56B6C2', HAS_STEP:'#E06C75'
-};
-const DEFAULT_NC = '#ABB2BF';
-const DEFAULT_EC = '#4a4a4a';
-// Generate distinct cluster colors via golden angle
-function clusterColor(i) {
-  const h = (i * 137.508) % 360;
-  return `hsl(${h}, 65%, 55%)`;
+
+function classifyModule(name) {
+  const n = name.toLowerCase();
+  if (n.startsWith('feature:') || n.startsWith('feature/')) return 'feature';
+  if (n.startsWith('core:') || n.startsWith('core/')) return 'core';
+  if (n.startsWith('data:') || n.startsWith('data/')) return 'data';
+  if (n.includes('android') || n.includes('ios') || n.includes('platform')) return 'platform';
+  if (n === 'app' || n === 'composeapp' || n.includes('androidapp')) return 'app';
+  return 'other';
+}
+
+function prettyName(raw) {
+  // "feature:auth" -> "Auth", "core:design-system" -> "Design System"
+  const parts = raw.split(/[:/]/);
+  const last = parts[parts.length - 1];
+  return last.split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
 // ── State ───────────────────────────────────────────────────────────────
-let rawData = null;        // original { nodes, relationships }
-let communities = [];      // sorted community list
-let communityMap = {};     // communityId -> { label, nodes[], edges[], color }
-let membershipMap = {};    // nodeId -> communityId
-let contentMap = {};       // nodeId -> content string
-let sigmaInstance = null;
-let graph = null;
-let showLabels = false;
-let currentView = 'overview'; // 'overview' | communityId
-let searchHighlight = null;
+let modules = [];       // [{id, name, prettyName, layer, files, symbols, deps[], depBy[]}]
+let moduleMap = {};     // id -> module
+let layout = null;      // dagre layout result
+let cam = { x: 0, y: 0, zoom: 1 };
+let selectedModule = null;
+let hoveredModule = null;
+let currentView = 'feature'; // 'feature' | 'layer'
+const canvas = document.getElementById('flow-canvas');
+const ctx = canvas.getContext('2d');
 
-// ── Load Screen ─────────────────────────────────────────────────────────
+// ── Load ────────────────────────────────────────────────────────────────
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
 dropZone.addEventListener('click', () => fileInput.click());
@@ -249,486 +234,475 @@ document.getElementById('fetch-btn').addEventListener('click', () => fetchUrl(do
 
 function readFile(f) {
   const r = new FileReader();
-  r.onload = e => { try { processData(JSON.parse(e.target.result)); } catch { showErr('Invalid JSON'); } };
+  r.onload = e => { try { processData(JSON.parse(e.target.result)); } catch(err) { showErr('Invalid JSON: '+err.message); } };
   r.readAsText(f);
 }
 async function fetchUrl(url) {
   if (!url) return;
   const btn = document.getElementById('fetch-btn'); btn.disabled = true; btn.textContent = '…';
   try { const r = await fetch(url); if (!r.ok) throw new Error(`HTTP ${r.status}`); processData(await r.json()); }
-  catch (e) { showErr('Connect failed: ' + e.message); }
+  catch (e) { showErr('Failed: ' + e.message); }
   finally { btn.disabled = false; btn.textContent = 'Connect'; }
 }
 function showErr(m) { const el = document.getElementById('load-error'); el.textContent = m; el.style.display = 'block'; }
 
-// ── Data Processing ─────────────────────────────────────────────────────
+// ── Process Data → Extract Modules ──────────────────────────────────────
 function processData(data) {
-  rawData = data;
   if (!data.nodes?.length) return showErr('No nodes');
   document.getElementById('load-screen').style.display = 'none';
   document.getElementById('app').classList.add('visible');
 
-  // Index nodes by id for fast lookup
-  const nodeById = {};
-  data.nodes.forEach(n => { nodeById[n.id] = n; });
+  // Group files/symbols by module (top-level directory structure)
+  const moduleFiles = {};  // moduleName -> Set of filePaths
+  const moduleSymbols = {}; // moduleName -> count
+  const skipLabels = new Set(['Community', 'Process']);
 
-  // Build community membership from MEMBER_OF edges
-  membershipMap = {};
-  communityMap = {};
-  contentMap = {};
-
-  // Store content separately
   data.nodes.forEach(n => {
-    if (n.properties?.content && n.properties.content !== '[Binary file - content not stored]') {
-      contentMap[n.id] = n.properties.content;
-    }
-  });
-
-  // Find MEMBER_OF relationships to build community membership
-  data.relationships.forEach(r => {
-    if (r.type === 'MEMBER_OF') {
-      membershipMap[r.sourceId] = r.targetId;
-    }
-  });
-
-  // Also use CONTAINS for folder->file grouping as fallback community assignment
-  // Build communities from Community nodes
-  const communityNodes = data.nodes.filter(n => n.label === 'Community');
-  const codeNodeTypes = new Set(['Function','Class','Interface','Method','Variable','Module','Enum','Field']);
-
-  communityNodes.forEach((c, idx) => {
-    communityMap[c.id] = {
-      id: c.id,
-      label: c.properties?.heuristicLabel || c.properties?.name || `Cluster ${idx + 1}`,
-      cohesion: c.properties?.cohesion,
-      symbolCount: c.properties?.symbolCount || 0,
-      color: clusterColor(idx),
-      nodeIds: [],
-      edgeIds: []
-    };
-  });
-
-  // Assign nodes to communities
-  data.nodes.forEach(n => {
-    const cid = membershipMap[n.id];
-    if (cid && communityMap[cid]) {
-      communityMap[cid].nodeIds.push(n.id);
-    }
-  });
-
-  // For nodes without community, group by top-level directory
-  const dirCommunities = {};
-  data.nodes.forEach(n => {
-    if (membershipMap[n.id]) return;
-    if (!codeNodeTypes.has(n.label)) return;
+    if (skipLabels.has(n.label)) return;
     const fp = n.properties?.filePath || '';
-    const dir = fp.split('/').slice(0, 2).join('/') || 'root';
-    if (!dirCommunities[dir]) {
-      const id = 'dir:' + dir;
-      dirCommunities[dir] = id;
-      communityMap[id] = {
-        id, label: dir, cohesion: null,
-        symbolCount: 0, color: clusterColor(Object.keys(communityMap).length),
-        nodeIds: [], edgeIds: []
-      };
+    if (!fp) return;
+
+    // Extract module from path: "feature/auth/src/..." -> "feature:auth"
+    // Or "composeApp/src/..." -> "composeApp"
+    const parts = fp.split('/');
+    let modName = '';
+
+    // Detect gradle-style multi-module: feature/X, core/X, data/X
+    if (parts.length >= 2 && ['feature','core','data'].includes(parts[0])) {
+      modName = parts[0] + ':' + parts[1];
+    } else if (parts.length >= 1) {
+      modName = parts[0];
     }
-    membershipMap[n.id] = dirCommunities[dir];
-    communityMap[dirCommunities[dir]].nodeIds.push(n.id);
-    communityMap[dirCommunities[dir]].symbolCount++;
+    if (!modName || modName === '.' || modName.startsWith('.')) return;
+
+    if (!moduleFiles[modName]) { moduleFiles[modName] = new Set(); moduleSymbols[modName] = 0; }
+    moduleFiles[modName].add(fp);
+    if (n.label !== 'File' && n.label !== 'Folder') moduleSymbols[modName]++;
   });
 
-  // Update symbol counts
-  Object.values(communityMap).forEach(c => {
-    if (!c.symbolCount) c.symbolCount = c.nodeIds.length;
+  // Build node -> module mapping for dependency detection
+  const nodeToModule = {};
+  data.nodes.forEach(n => {
+    const fp = n.properties?.filePath || '';
+    const parts = fp.split('/');
+    let modName = '';
+    if (parts.length >= 2 && ['feature','core','data'].includes(parts[0])) {
+      modName = parts[0] + ':' + parts[1];
+    } else if (parts.length >= 1) {
+      modName = parts[0];
+    }
+    if (modName && moduleFiles[modName]) nodeToModule[n.id] = modName;
   });
 
-  // Sort communities by size (largest first), filter out empty ones
-  communities = Object.values(communityMap)
-    .filter(c => c.nodeIds.length > 0)
-    .sort((a, b) => b.nodeIds.length - a.nodeIds.length);
+  // Detect cross-module dependencies from relationships
+  const depCounts = {}; // "modA->modB" -> count
+  const depTypes = {};  // "modA->modB" -> Set of types
+  data.relationships.forEach(r => {
+    if (r.type === 'MEMBER_OF' || r.type === 'CONTAINS' || r.type === 'HAS_STEP') return;
+    const sm = nodeToModule[r.sourceId];
+    const tm = nodeToModule[r.targetId];
+    if (!sm || !tm || sm === tm) return;
+    const key = sm + '->' + tm;
+    depCounts[key] = (depCounts[key] || 0) + 1;
+    if (!depTypes[key]) depTypes[key] = new Set();
+    depTypes[key].add(r.type);
+  });
 
-  buildFeatureList();
-  showOverview();
+  // Build module objects
+  modules = [];
+  moduleMap = {};
+  Object.keys(moduleFiles).forEach(name => {
+    const layer = classifyModule(name);
+    const mod = {
+      id: name, name, prettyName: prettyName(name),
+      layer, color: LAYER_CONFIG[layer].color,
+      files: moduleFiles[name].size,
+      symbols: moduleSymbols[name] || 0,
+      deps: [], depBy: [], depDetails: {}
+    };
+    modules.push(mod);
+    moduleMap[name] = mod;
+  });
+
+  // Populate deps
+  Object.entries(depCounts).forEach(([key, count]) => {
+    const [from, to] = key.split('->');
+    if (!moduleMap[from] || !moduleMap[to]) return;
+    if (count < 2) return; // filter noise: require at least 2 cross-module refs
+    moduleMap[from].deps.push(to);
+    moduleMap[to].depBy.push(from);
+    moduleMap[from].depDetails[to] = { count, types: [...(depTypes[key] || [])] };
+  });
+
+  // Sort: features first, then by symbol count
+  modules.sort((a, b) => {
+    const la = LAYER_CONFIG[a.layer].rank;
+    const lb = LAYER_CONFIG[b.layer].rank;
+    if (la !== lb) return la - lb;
+    return b.symbols - a.symbols;
+  });
+
+  buildModuleList();
+  computeLayout();
+  buildLegend();
+  fitView();
+  updateStats();
+  render();
 }
 
-// ── Feature List ────────────────────────────────────────────────────────
-function buildFeatureList() {
-  const container = document.getElementById('feature-items');
+// ── Module List ─────────────────────────────────────────────────────────
+function buildModuleList() {
+  const container = document.getElementById('module-list');
   container.innerHTML = '';
-
-  // Add "All features overview" card
-  const overviewCard = document.createElement('div');
-  overviewCard.className = 'feature-card active';
-  overviewCard.id = 'fc-overview';
-  overviewCard.innerHTML = `<div class="fc-name">Overview (all clusters)</div>
-    <div class="fc-meta"><span>${communities.length} features</span>
-    <span>${rawData.nodes.length.toLocaleString()} nodes</span></div>`;
-  overviewCard.addEventListener('click', showOverview);
-  container.appendChild(overviewCard);
-
-  communities.forEach(c => {
+  modules.forEach(m => {
     const card = document.createElement('div');
-    card.className = 'feature-card';
-    card.dataset.id = c.id;
-    const maxBar = communities[0].nodeIds.length;
-    const barW = Math.max(5, (c.nodeIds.length / maxBar) * 100);
+    card.className = 'module-card';
+    card.dataset.id = m.id;
+    const lc = LAYER_CONFIG[m.layer];
     card.innerHTML = `
-      <div class="fc-name"><span class="fc-dot" style="background:${c.color}"></span>${c.label}</div>
-      <div class="fc-meta">
-        <span>${c.nodeIds.length} symbols</span>
-        ${c.cohesion != null ? `<span>${(c.cohesion * 100).toFixed(0)}% cohesion</span>` : ''}
-      </div>
-      <div class="fc-bar" style="width:${barW}%;background:${c.color}"></div>`;
-    card.addEventListener('click', () => showCommunityFlow(c.id));
+      <div class="mc-name"><span class="mc-dot" style="background:${m.color}"></span>${m.prettyName}
+        <span class="mc-layer" style="background:${lc.color}22;color:${lc.color}">${lc.label}</span></div>
+      <div class="mc-meta">${m.symbols} symbols · ${m.files} files · ${m.deps.length} deps</div>`;
+    card.addEventListener('click', () => selectModule(m.id));
+    card.addEventListener('mouseenter', () => { hoveredModule = m.id; render(); });
+    card.addEventListener('mouseleave', () => { hoveredModule = null; render(); });
     container.appendChild(card);
   });
 }
 
-document.getElementById('feature-search').addEventListener('input', e => {
+document.getElementById('module-search').addEventListener('input', e => {
   const q = e.target.value.toLowerCase();
-  document.querySelectorAll('.feature-card').forEach(card => {
-    if (card.id === 'fc-overview') { card.style.display = q ? 'none' : ''; return; }
-    const name = card.querySelector('.fc-name').textContent.toLowerCase();
-    card.style.display = name.includes(q) ? '' : 'none';
+  document.querySelectorAll('.module-card').forEach(c => {
+    c.style.display = c.querySelector('.mc-name').textContent.toLowerCase().includes(q) ? '' : 'none';
   });
 });
 
-// ── Overview: show communities as nodes ─────────────────────────────────
-function showOverview() {
-  currentView = 'overview';
-  setActiveCard('fc-overview');
-  updateBreadcrumb();
-  document.getElementById('graph-hint').style.display = 'none';
-  document.getElementById('detail-panel').classList.remove('visible');
-  setLoading(true, 'Building overview…');
-
-  if (sigmaInstance) { sigmaInstance.kill(); sigmaInstance = null; }
-  graph = new graphology.Graph({ multi: false, allowSelfLoops: false });
-
-  // Add community nodes
-  communities.forEach(c => {
-    const size = Math.max(8, Math.min(40, 8 + Math.sqrt(c.nodeIds.length) * 2));
-    graph.addNode(c.id, {
-      label: c.label, size, color: c.color,
-      x: Math.random() * 500, y: Math.random() * 500,
-      nodeLabel: 'Community', communityId: c.id
-    });
-  });
-
-  // Add edges between communities based on cross-community relationships
-  const crossEdges = {};
-  rawData.relationships.forEach(r => {
-    if (r.type === 'MEMBER_OF' || r.type === 'CONTAINS' || r.type === 'HAS_STEP') return;
-    const sc = membershipMap[r.sourceId];
-    const tc = membershipMap[r.targetId];
-    if (!sc || !tc || sc === tc) return;
-    if (!graph.hasNode(sc) || !graph.hasNode(tc)) return;
-    const key = sc < tc ? `${sc}|${tc}` : `${tc}|${sc}`;
-    crossEdges[key] = (crossEdges[key] || 0) + 1;
-  });
-
-  Object.entries(crossEdges).forEach(([key, count]) => {
-    const [a, b] = key.split('|');
-    if (!graph.hasEdge(a, b)) {
-      graph.addEdge(a, b, {
-        size: Math.max(1, Math.min(6, Math.log2(count + 1))),
-        color: '#555', edgeType: 'CROSS_COMMUNITY', label: `${count} connections`
-      });
-    }
-  });
-
-  initSigma();
-  runLayout();
-  updateStats();
-  buildLegend('overview');
-}
-
-// ── Community Flow View ─────────────────────────────────────────────────
-function showCommunityFlow(communityId) {
-  currentView = communityId;
-  setActiveCard(communityId);
-  updateBreadcrumb();
-  document.getElementById('graph-hint').style.display = 'none';
-  document.getElementById('detail-panel').classList.remove('visible');
-  setLoading(true, 'Building flow…');
-
-  if (sigmaInstance) { sigmaInstance.kill(); sigmaInstance = null; }
-  graph = new graphology.Graph({ multi: false, allowSelfLoops: false });
-
-  const comm = communityMap[communityId];
-  if (!comm) return;
-
-  const memberSet = new Set(comm.nodeIds);
-  const nodeById = {};
-  rawData.nodes.forEach(n => { nodeById[n.id] = n; });
-
-  // Add community member nodes (skip File/Folder)
-  const skipTypes = new Set(['File', 'Folder', 'Community', 'Process']);
-  comm.nodeIds.forEach(nid => {
-    const n = nodeById[nid];
-    if (!n || skipTypes.has(n.label)) return;
-    const color = NODE_COLORS[n.label] || DEFAULT_NC;
-    graph.addNode(nid, {
-      label: n.properties?.name || nid,
-      nodeLabel: n.label, color, size: 6,
-      x: Math.random() * 500, y: Math.random() * 500,
-      filePath: n.properties?.filePath || '',
-      startLine: n.properties?.startLine,
-      endLine: n.properties?.endLine
-    });
-  });
-
-  // Add edges within this community
-  const flowTypes = new Set(['CALLS', 'IMPORTS', 'EXTENDS', 'IMPLEMENTS', 'DEPENDS_ON', 'REFERENCES']);
-  rawData.relationships.forEach(r => {
-    if (!flowTypes.has(r.type)) return;
-    if (!graph.hasNode(r.sourceId) || !graph.hasNode(r.targetId)) return;
-    if (graph.hasEdge(r.sourceId, r.targetId)) return;
-    const color = EDGE_COLORS[r.type] || DEFAULT_EC;
-    const conf = r.confidence ?? 1;
-    graph.addEdge(r.sourceId, r.targetId, {
-      edgeType: r.type, color, size: Math.max(0.8, conf * 2),
-      confidence: conf, reason: r.reason || ''
-    });
-  });
-
-  // Also include edges to/from outside the community (show as dimmed external nodes)
-  rawData.relationships.forEach(r => {
-    if (!flowTypes.has(r.type)) return;
-    const srcIn = memberSet.has(r.sourceId);
-    const tgtIn = memberSet.has(r.targetId);
-    if (srcIn === tgtIn) return; // both in or both out
-    const externalId = srcIn ? r.targetId : r.sourceId;
-    const en = nodeById[externalId];
-    if (!en || skipTypes.has(en.label)) return;
-    if (!graph.hasNode(externalId)) {
-      graph.addNode(externalId, {
-        label: en.properties?.name || externalId,
-        nodeLabel: en.label, color: '#555', size: 4,
-        x: Math.random() * 500, y: Math.random() * 500,
-        filePath: en.properties?.filePath || '',
-        startLine: en.properties?.startLine, endLine: en.properties?.endLine,
-        external: true
-      });
-    }
-    if (!graph.hasEdge(r.sourceId, r.targetId) && graph.hasNode(r.sourceId) && graph.hasNode(r.targetId)) {
-      graph.addEdge(r.sourceId, r.targetId, {
-        edgeType: r.type, color: '#444', size: 0.8,
-        confidence: r.confidence ?? 1, reason: r.reason || ''
-      });
-    }
-  });
-
-  // Size nodes by degree within this graph
-  graph.forEachNode((n, attrs) => {
-    const deg = graph.degree(n);
-    graph.setNodeAttribute(n, 'size', Math.max(4, Math.min(20, 4 + Math.log2(deg + 1) * 3)));
-  });
-
-  initSigma();
-  runLayout();
-  updateStats();
-  buildLegend('community');
-}
-
-// ── Sigma ───────────────────────────────────────────────────────────────
-function initSigma() {
-  sigmaInstance = new Sigma(graph, document.getElementById('sigma-container'), {
-    renderLabels: true,
-    labelRenderedSizeThreshold: currentView === 'overview' ? -Infinity : 6,
-    defaultEdgeColor: DEFAULT_EC, defaultNodeColor: DEFAULT_NC,
-    defaultEdgeType: 'arrow',
-    minCameraRatio: 0.01, maxCameraRatio: 10,
-    labelFont: 'Segoe UI, system-ui, sans-serif', labelSize: 11,
-    labelColor: { color: '#d4d4d4' },
-    nodeReducer: (node, data) => {
-      if (searchHighlight && node !== searchHighlight && !graph.neighbors(searchHighlight).includes(node)) {
-        return { ...data, color: '#2a2a2a', label: '', size: data.size * 0.5 };
-      }
-      if (searchHighlight === node) return { ...data, size: data.size * 1.4, zIndex: 1 };
-      return data;
-    },
-    edgeReducer: (edge, data) => data
-  });
-
-  sigmaInstance.on('clickNode', ({ node }) => {
-    if (currentView === 'overview') {
-      // Click community node -> drill into it
-      showCommunityFlow(node);
+function selectModule(id) {
+  selectedModule = selectedModule === id ? null : id;
+  document.querySelectorAll('.module-card').forEach(c => {
+    c.classList.toggle('active', c.dataset.id === selectedModule);
+    // Highlight deps
+    const mod = selectedModule ? moduleMap[selectedModule] : null;
+    if (mod) {
+      c.classList.toggle('highlighted',
+        mod.deps.includes(c.dataset.id) || mod.depBy.includes(c.dataset.id));
     } else {
-      searchHighlight = node;
-      sigmaInstance.refresh();
-      showDetail(node);
+      c.classList.remove('highlighted');
     }
   });
-  sigmaInstance.on('clickStage', () => {
-    searchHighlight = null;
-    if (sigmaInstance) sigmaInstance.refresh();
-  });
+  if (selectedModule) showModuleDetail(selectedModule);
+  else document.getElementById('detail-panel').classList.remove('visible');
+  render();
 }
 
-function runLayout() {
-  const count = graph.order;
-  if (count === 0) { setLoading(false); return; }
+// ── Dagre Layout ────────────────────────────────────────────────────────
+function computeLayout() {
+  const g = new dagre.graphlib.Graph();
+  g.setGraph({
+    rankdir: currentView === 'layer' ? 'TB' : 'LR',
+    nodesep: 30, ranksep: 80, edgesep: 20, marginx: 40, marginy: 40
+  });
+  g.setDefaultEdgeLabel(() => ({}));
 
-  // Circular initial positions
-  let i = 0;
-  graph.forEachNode(n => {
-    const angle = (i++ / count) * Math.PI * 2;
-    graph.setNodeAttribute(n, 'x', Math.cos(angle) * 300);
-    graph.setNodeAttribute(n, 'y', Math.sin(angle) * 300);
+  modules.forEach(m => {
+    const w = Math.max(120, m.prettyName.length * 8 + 40);
+    const h = 52;
+    g.setNode(m.id, { width: w, height: h, layer: m.layer });
   });
 
-  const iters = count > 2000 ? 60 : count > 500 ? 100 : 200;
-  graphologyLayoutForceAtlas2.assign(graph, {
-    iterations: iters,
-    settings: {
-      gravity: currentView === 'overview' ? 5 : 2,
-      scalingRatio: currentView === 'overview' ? 20 : 8,
-      strongGravityMode: true,
-      barnesHutOptimize: count > 500,
-      barnesHutTheta: 0.5, slowDown: 3
+  // Add edges (deduplicated)
+  const addedEdges = new Set();
+  modules.forEach(m => {
+    m.deps.forEach(dep => {
+      const key = m.id + '|' + dep;
+      if (addedEdges.has(key)) return;
+      if (!g.hasNode(dep)) return;
+      addedEdges.add(key);
+      g.setEdge(m.id, dep);
+    });
+  });
+
+  dagre.layout(g);
+  layout = g;
+}
+
+// ── Canvas Rendering ────────────────────────────────────────────────────
+function resizeCanvas() {
+  const wrap = document.getElementById('canvas-wrap');
+  canvas.width = wrap.clientWidth * devicePixelRatio;
+  canvas.height = wrap.clientHeight * devicePixelRatio;
+  canvas.style.width = wrap.clientWidth + 'px';
+  canvas.style.height = wrap.clientHeight + 'px';
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+}
+
+function render() {
+  if (!layout) return;
+  resizeCanvas();
+  const w = canvas.width / devicePixelRatio;
+  const h = canvas.height / devicePixelRatio;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.save();
+  ctx.translate(w / 2 + cam.x, h / 2 + cam.y);
+  ctx.scale(cam.zoom, cam.zoom);
+
+  const graphW = layout.graph().width || 800;
+  const graphH = layout.graph().height || 600;
+  ctx.translate(-graphW / 2, -graphH / 2);
+
+  const sel = selectedModule ? moduleMap[selectedModule] : null;
+  const hov = hoveredModule ? moduleMap[hoveredModule] : null;
+  const highlightSet = new Set();
+  if (sel) { highlightSet.add(sel.id); sel.deps.forEach(d => highlightSet.add(d)); sel.depBy.forEach(d => highlightSet.add(d)); }
+  if (hov) { highlightSet.add(hov.id); hov.deps.forEach(d => highlightSet.add(d)); hov.depBy.forEach(d => highlightSet.add(d)); }
+
+  // Draw edges
+  layout.edges().forEach(e => {
+    const edge = layout.edge(e);
+    if (!edge.points?.length) return;
+    const from = e.v, to = e.w;
+
+    const isHighlighted = highlightSet.size === 0 ||
+      (highlightSet.has(from) && highlightSet.has(to));
+    const isDimmed = highlightSet.size > 0 && !isHighlighted;
+
+    ctx.beginPath();
+    ctx.moveTo(edge.points[0].x, edge.points[0].y);
+    for (let i = 1; i < edge.points.length; i++) {
+      ctx.lineTo(edge.points[i].x, edge.points[i].y);
+    }
+    ctx.strokeStyle = isDimmed ? '#1a2040' : '#3a4a6c';
+    ctx.lineWidth = isDimmed ? 0.5 : 1.5;
+    ctx.stroke();
+
+    // Arrowhead
+    if (edge.points.length >= 2) {
+      const last = edge.points[edge.points.length - 1];
+      const prev = edge.points[edge.points.length - 2];
+      const angle = Math.atan2(last.y - prev.y, last.x - prev.x);
+      const sz = isDimmed ? 4 : 7;
+      ctx.save();
+      ctx.translate(last.x, last.y);
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-sz, -sz / 2);
+      ctx.lineTo(-sz, sz / 2);
+      ctx.closePath();
+      ctx.fillStyle = isDimmed ? '#1a2040' : '#3a4a6c';
+      ctx.fill();
+      ctx.restore();
     }
   });
-  setLoading(false);
-  if (sigmaInstance) sigmaInstance.getCamera().animatedReset({ duration: 300 });
+
+  // Draw nodes
+  layout.nodes().forEach(nid => {
+    const nd = layout.node(nid);
+    if (!nd) return;
+    const mod = moduleMap[nid];
+    if (!mod) return;
+
+    const isDimmed = highlightSet.size > 0 && !highlightSet.has(nid);
+    const isSelected = selectedModule === nid;
+    const isHovered = hoveredModule === nid;
+
+    const x = nd.x - nd.width / 2;
+    const y = nd.y - nd.height / 2;
+    const r = 8;
+
+    // Shadow for selected/hovered
+    if (isSelected || isHovered) {
+      ctx.shadowColor = mod.color + '44';
+      ctx.shadowBlur = 16;
+    }
+
+    // Rounded rect
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + nd.width - r, y);
+    ctx.quadraticCurveTo(x + nd.width, y, x + nd.width, y + r);
+    ctx.lineTo(x + nd.width, y + nd.height - r);
+    ctx.quadraticCurveTo(x + nd.width, y + nd.height, x + nd.width - r, y + nd.height);
+    ctx.lineTo(x + r, y + nd.height);
+    ctx.quadraticCurveTo(x, y + nd.height, x, y + nd.height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+
+    ctx.fillStyle = isDimmed ? '#111828' : isSelected ? mod.color + '22' : '#1e2a4a';
+    ctx.fill();
+    ctx.strokeStyle = isDimmed ? '#1a2040' : isSelected ? mod.color : '#2a3a5c';
+    ctx.lineWidth = isSelected ? 2 : 1;
+    ctx.stroke();
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+
+    // Color bar on left
+    ctx.fillStyle = isDimmed ? '#222' : mod.color;
+    ctx.globalAlpha = isDimmed ? 0.2 : 0.8;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + 4, y);
+    ctx.lineTo(x + 4, y + nd.height);
+    ctx.lineTo(x + r, y + nd.height);
+    ctx.quadraticCurveTo(x, y + nd.height, x, y + nd.height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Name
+    ctx.fillStyle = isDimmed ? '#333' : '#e0e0e0';
+    ctx.font = '600 12px Inter, Segoe UI, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(mod.prettyName, x + 12, y + nd.height / 2 - 7);
+
+    // Meta line
+    ctx.fillStyle = isDimmed ? '#222' : '#5a6785';
+    ctx.font = '10px Inter, Segoe UI, system-ui, sans-serif';
+    ctx.fillText(`${mod.symbols} symbols · ${mod.deps.length} deps`, x + 12, y + nd.height / 2 + 9);
+  });
+
+  ctx.restore();
+}
+
+// ── Pan & Zoom ──────────────────────────────────────────────────────────
+let dragging = false, dragStart = { x: 0, y: 0 };
+
+canvas.addEventListener('mousedown', e => { dragging = true; dragStart = { x: e.clientX - cam.x, y: e.clientY - cam.y }; });
+canvas.addEventListener('mousemove', e => {
+  if (dragging) { cam.x = e.clientX - dragStart.x; cam.y = e.clientY - dragStart.y; render(); return; }
+  // Hit test for hover
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left - rect.width / 2 - cam.x) / cam.zoom + (layout?.graph().width || 0) / 2;
+  const my = (e.clientY - rect.top - rect.height / 2 - cam.y) / cam.zoom + (layout?.graph().height || 0) / 2;
+  let found = null;
+  layout?.nodes().forEach(nid => {
+    const nd = layout.node(nid);
+    if (mx >= nd.x - nd.width / 2 && mx <= nd.x + nd.width / 2 &&
+        my >= nd.y - nd.height / 2 && my <= nd.y + nd.height / 2) {
+      found = nid;
+    }
+  });
+  if (found !== hoveredModule) { hoveredModule = found; canvas.style.cursor = found ? 'pointer' : 'grab'; render(); }
+});
+canvas.addEventListener('mouseup', () => { dragging = false; });
+canvas.addEventListener('mouseleave', () => { dragging = false; hoveredModule = null; render(); });
+canvas.addEventListener('click', e => {
+  if (!hoveredModule) { selectModule(null); return; }
+  selectModule(hoveredModule);
+});
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.1 : 0.9;
+  cam.zoom = Math.max(0.1, Math.min(5, cam.zoom * factor));
+  render();
+}, { passive: false });
+
+document.getElementById('btn-zin').addEventListener('click', () => { cam.zoom = Math.min(5, cam.zoom * 1.3); render(); });
+document.getElementById('btn-zout').addEventListener('click', () => { cam.zoom = Math.max(0.1, cam.zoom / 1.3); render(); });
+document.getElementById('btn-fit').addEventListener('click', fitView);
+
+function fitView() {
+  cam = { x: 0, y: 0, zoom: 1 };
+  if (layout) {
+    const gw = layout.graph().width || 800;
+    const gh = layout.graph().height || 600;
+    const wrap = document.getElementById('canvas-wrap');
+    const scale = Math.min((wrap.clientWidth - 80) / gw, (wrap.clientHeight - 80) / gh, 1.5);
+    cam.zoom = scale;
+  }
+  render();
 }
 
 // ── Detail Panel ────────────────────────────────────────────────────────
-function showDetail(nodeId) {
-  const attrs = graph.getNodeAttributes(nodeId);
+function showModuleDetail(id) {
+  const mod = moduleMap[id];
+  if (!mod) return;
   const panel = document.getElementById('detail-panel');
   const content = document.getElementById('detail-content');
-  const color = attrs.color || DEFAULT_NC;
+  const lc = LAYER_CONFIG[mod.layer];
 
-  let html = `<div class="detail-name">${attrs.label}</div>
-    <div class="detail-meta">
-      <span>Type:</span> ${attrs.nodeLabel}<br>
-      ${attrs.filePath ? `<span>Path:</span> ${attrs.filePath}<br>` : ''}
-      ${attrs.startLine != null ? `<span>Lines:</span> ${attrs.startLine}–${attrs.endLine || '?'}<br>` : ''}
-      ${attrs.external ? '<span style="color:#E06C75">External node</span><br>' : ''}
+  let html = `<div class="d-title">${mod.prettyName}
+    <span class="d-badge" style="background:${lc.color}22;color:${lc.color}">${lc.label}</span></div>
+    <div class="d-section" style="color:var(--text2);font-size:11px;border-bottom:1px solid var(--border)">
+      ${mod.symbols} symbols · ${mod.files} files<br>
+      ${mod.deps.length} dependencies · ${mod.depBy.length} dependents
     </div>`;
 
-  const nodeContent = contentMap[nodeId];
-  if (nodeContent && nodeContent !== '[REDACTED]') {
-    const esc = nodeContent.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    html += `<div class="detail-code"><pre>${esc}</pre></div>`;
+  if (mod.deps.length) {
+    html += `<div class="d-section"><div class="d-section-title">Depends On (${mod.deps.length})</div>`;
+    mod.deps.forEach(d => {
+      const dm = moduleMap[d];
+      const detail = mod.depDetails[d];
+      html += `<div class="d-item" data-id="${d}"><span class="d-arrow">→</span>
+        <span class="mc-dot" style="background:${dm?.color||'#555'};width:8px;height:8px;border-radius:2px;flex-shrink:0"></span>
+        ${dm?.prettyName || d}
+        <span style="color:var(--text3);font-size:10px;margin-left:auto">${detail?.count || ''} refs</span></div>`;
+    });
+    html += '</div>';
   }
 
-  // Connections
-  const outEdges = graph.outEdges(nodeId);
-  const inEdges = graph.inEdges(nodeId);
-
-  if (outEdges.length) {
-    html += `<div class="conn-section"><div class="conn-title">Calls / Depends On (${outEdges.length})</div><div class="conn-list">`;
-    outEdges.slice(0, 40).forEach(e => {
-      const tgt = graph.target(e); const ta = graph.getNodeAttributes(tgt);
-      const et = graph.getEdgeAttribute(e, 'edgeType');
-      html += `<div class="conn-item" data-node="${tgt}">
-        <span class="rel-type">${et}</span><span class="node-name">${ta.label}</span></div>`;
+  if (mod.depBy.length) {
+    html += `<div class="d-section"><div class="d-section-title">Used By (${mod.depBy.length})</div>`;
+    mod.depBy.forEach(d => {
+      const dm = moduleMap[d];
+      html += `<div class="d-item" data-id="${d}"><span class="d-arrow">←</span>
+        <span class="mc-dot" style="background:${dm?.color||'#555'};width:8px;height:8px;border-radius:2px;flex-shrink:0"></span>
+        ${dm?.prettyName || d}</div>`;
     });
-    html += '</div></div>';
-  }
-  if (inEdges.length) {
-    html += `<div class="conn-section"><div class="conn-title">Called By / Imported By (${inEdges.length})</div><div class="conn-list">`;
-    inEdges.slice(0, 40).forEach(e => {
-      const src = graph.source(e); const sa = graph.getNodeAttributes(src);
-      const et = graph.getEdgeAttribute(e, 'edgeType');
-      html += `<div class="conn-item" data-node="${src}">
-        <span class="rel-type">${et}</span><span class="node-name">${sa.label}</span></div>`;
-    });
-    html += '</div></div>';
+    html += '</div>';
   }
 
   content.innerHTML = html;
-  content.querySelectorAll('.conn-item').forEach(el => {
-    el.addEventListener('click', () => {
-      const n = el.dataset.node;
-      searchHighlight = n; sigmaInstance.refresh();
-      const na = graph.getNodeAttributes(n);
-      sigmaInstance.getCamera().animate({ x: na.x, y: na.y, ratio: 0.4 }, { duration: 400 });
-      showDetail(n);
-    });
+  content.querySelectorAll('.d-item').forEach(el => {
+    el.addEventListener('click', () => selectModule(el.dataset.id));
   });
-
-  // Badge
-  let badge = panel.querySelector('.detail-type-badge');
-  if (!badge) { badge = document.createElement('span'); badge.className = 'detail-type-badge';
-    panel.querySelector('.detail-header').prepend(badge); }
-  badge.textContent = attrs.nodeLabel; badge.style.background = color + '33'; badge.style.color = color;
   panel.classList.add('visible');
 }
 
 document.getElementById('detail-close').addEventListener('click', () => {
   document.getElementById('detail-panel').classList.remove('visible');
-  searchHighlight = null; if (sigmaInstance) sigmaInstance.refresh();
+  selectModule(null);
 });
 
-// ── Breadcrumb ──────────────────────────────────────────────────────────
-function updateBreadcrumb() {
-  const bc = document.getElementById('breadcrumb');
-  if (currentView === 'overview') {
-    bc.innerHTML = '<span class="bc-link" id="bc-overview">All Features</span>';
-  } else {
-    const comm = communityMap[currentView];
-    bc.innerHTML = `<span class="bc-link" id="bc-overview">All Features</span>
-      <span class="bc-sep">›</span><span>${comm?.label || currentView}</span>`;
-  }
-  document.getElementById('bc-overview')?.addEventListener('click', showOverview);
-}
+// ── View Tabs ───────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentView = btn.dataset.view;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+    computeLayout();
+    fitView();
+    render();
+  });
+});
 
 // ── Legend ───────────────────────────────────────────────────────────────
-function buildLegend(mode) {
+function buildLegend() {
   const el = document.getElementById('legend');
-  if (mode === 'overview') {
-    el.innerHTML = '<div class="legend-item" style="color:var(--text3)">Click a cluster to explore</div>';
-    return;
-  }
-  const types = new Set();
-  graph.forEachNode((n, a) => { if (!a.external) types.add(a.nodeLabel); });
-  el.innerHTML = [...types].map(t =>
-    `<div class="legend-item"><span class="legend-dot" style="background:${NODE_COLORS[t]||DEFAULT_NC}"></span>${t}</div>`
-  ).join('') + '<div class="legend-item"><span class="legend-dot" style="background:#555"></span>External</div>';
+  el.innerHTML = Object.entries(LAYER_CONFIG).map(([k, v]) =>
+    `<div class="legend-item"><span class="legend-box" style="background:${v.color}"></span>${v.label}</div>`
+  ).join('');
 }
 
 // ── Controls ────────────────────────────────────────────────────────────
-document.getElementById('btn-zoom-in').addEventListener('click', () => sigmaInstance?.getCamera().animatedZoom({ duration: 300 }));
-document.getElementById('btn-zoom-out').addEventListener('click', () => sigmaInstance?.getCamera().animatedUnzoom({ duration: 300 }));
-document.getElementById('btn-zoom-reset').addEventListener('click', () => sigmaInstance?.getCamera().animatedReset({ duration: 400 }));
-document.getElementById('btn-labels').addEventListener('click', () => {
-  showLabels = !showLabels;
-  document.getElementById('btn-labels').classList.toggle('active', showLabels);
-  if (sigmaInstance) {
-    sigmaInstance.setSetting('labelRenderedSizeThreshold', showLabels ? -Infinity : 6);
-    sigmaInstance.refresh();
-  }
-});
-document.getElementById('btn-layout').addEventListener('click', () => { if (graph) runLayout(); });
 document.getElementById('btn-load').addEventListener('click', () => {
-  if (sigmaInstance) { sigmaInstance.kill(); sigmaInstance = null; }
-  rawData = null; graph = null; communities = []; communityMap = {}; membershipMap = {}; contentMap = {};
+  modules = []; moduleMap = {}; layout = null; selectedModule = null;
   document.getElementById('app').classList.remove('visible');
   document.getElementById('load-screen').style.display = 'flex';
   document.getElementById('detail-panel').classList.remove('visible');
   document.getElementById('load-error').style.display = 'none';
 });
 
-// ── Helpers ─────────────────────────────────────────────────────────────
-function setActiveCard(id) {
-  document.querySelectorAll('.feature-card').forEach(c => c.classList.remove('active'));
-  if (id === 'fc-overview') document.getElementById('fc-overview')?.classList.add('active');
-  else document.querySelector(`.feature-card[data-id="${id}"]`)?.classList.add('active');
-}
-function setLoading(show, text = '') {
-  document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
-  if (text) document.getElementById('loading-text').textContent = text;
-}
 function updateStats() {
-  if (!graph) return;
-  const mode = currentView === 'overview' ? 'overview' : 'feature';
+  const deps = modules.reduce((s, m) => s + m.deps.length, 0);
   document.getElementById('stats').textContent =
-    `${mode} · ${graph.order.toLocaleString()} nodes · ${graph.size.toLocaleString()} edges`;
+    `${modules.length} modules · ${deps} dependencies`;
 }
+
+// ── Resize ──────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => { if (layout) render(); });
 </script>
 </body>
 </html>
