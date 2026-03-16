@@ -1,0 +1,9 @@
+.env
+*.json
+!package.json
+local.properties
+*.jks
+*.keystore
+credentials*
+secret*
+.DS_Store

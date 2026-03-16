@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitNexus Graph Viewer</title>
+<script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/dist/graphology-layout-forceatlas2.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sigma@2.4.0/build/sigma.min.js"></script>
+<style>
+  /* ── Reset & Variables ─────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #1e1e1e; --bg2: #252526; --bg3: #2d2d30; --bg4: #3c3c3c;
+    --border: #3c3c3c; --text: #d4d4d4; --text2: #9d9d9d; --text3: #6a6a6a;
+    --accent: #0078d4; --accent2: #1a8cef;
+    --sidebar-w: 240px; --detail-w: 300px;
+    --node-file: #4FC1FF; --node-folder: #C5A5C5; --node-fn: #98C379;
+    --node-class: #C678DD; --node-iface: #E5C07B; --node-method: #61AFEF;
+    --node-community: #E5915C; --node-process: #E06C75; --node-default: #ABB2BF;
+  }
+  html, body { height: 100%; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px; background: var(--bg); color: var(--text); }
+
+  /* ── Load Screen ───────────────────────────────────────────────── */
+  #load-screen {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 24px; z-index: 100;
+    background: var(--bg);
+  }
+  #load-screen h1 { font-size: 22px; font-weight: 600; color: var(--text);
+    display: flex; align-items: center; gap: 8px; }
+  #load-screen h1 span { color: var(--accent2); }
+  .drop-zone {
+    width: 420px; border: 2px dashed var(--border); border-radius: 8px;
+    padding: 36px 24px; text-align: center; cursor: pointer;
+    transition: border-color .2s, background .2s;
+  }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent2); background: rgba(0,120,212,.08); }
+  .drop-zone p { color: var(--text2); margin-top: 8px; font-size: 12px; }
+  .drop-zone .icon { font-size: 36px; margin-bottom: 8px; }
+  .or-divider { color: var(--text3); font-size: 11px; letter-spacing: 1px; }
+  .url-row { display: flex; gap: 8px; width: 420px; }
+  .url-row input {
+    flex: 1; background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text); border-radius: 4px; padding: 7px 10px; font-size: 13px;
+    outline: none;
+  }
+  .url-row input:focus { border-color: var(--accent2); }
+  .btn {
+    background: var(--accent); color: #fff; border: none; border-radius: 4px;
+    padding: 7px 14px; font-size: 13px; cursor: pointer; white-space: nowrap;
+    transition: background .15s;
+  }
+  .btn:hover { background: var(--accent2); }
+  .btn:disabled { background: var(--bg4); color: var(--text3); cursor: not-allowed; }
+  #load-error { color: #e06c75; font-size: 12px; display: none; }
+
+  /* ── App Layout ────────────────────────────────────────────────── */
+  #app { display: none; height: 100vh; flex-direction: column; }
+  #app.visible { display: flex; }
+
+  /* Toolbar */
+  #toolbar {
+    height: 40px; background: var(--bg2); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px; padding: 0 12px; flex-shrink: 0;
+  }
+  #toolbar .title { font-weight: 600; color: var(--accent2); margin-right: 8px; }
+  .tb-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+  #stats { color: var(--text2); font-size: 11px; margin-left: auto; }
+  .icon-btn {
+    background: none; border: 1px solid transparent; border-radius: 3px; color: var(--text2);
+    padding: 3px 8px; cursor: pointer; font-size: 12px; transition: all .15s;
+  }
+  .icon-btn:hover { background: var(--bg4); border-color: var(--border); color: var(--text); }
+  .icon-btn.active { background: var(--bg4); border-color: var(--accent); color: var(--accent2); }
+
+  /* Main area */
+  #main { flex: 1; display: flex; overflow: hidden; }
+
+  /* Left Sidebar */
+  #sidebar {
+    width: var(--sidebar-w); background: var(--bg2); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+  }
+  .panel-header {
+    padding: 8px 12px; font-size: 11px; font-weight: 600; color: var(--text2);
+    text-transform: uppercase; letter-spacing: .8px; border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .panel-scroll { flex: 1; overflow-y: auto; padding: 8px; }
+  .panel-scroll::-webkit-scrollbar { width: 6px; }
+  .panel-scroll::-webkit-scrollbar-track { background: transparent; }
+  .panel-scroll::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+  #search-box {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text); border-radius: 4px; padding: 5px 8px; font-size: 12px;
+    outline: none; margin-bottom: 8px;
+  }
+  #search-box:focus { border-color: var(--accent2); }
+  .filter-section { margin-bottom: 10px; }
+  .filter-section-title {
+    font-size: 10px; font-weight: 700; color: var(--text3); text-transform: uppercase;
+    letter-spacing: .6px; margin-bottom: 4px; padding: 2px 0;
+  }
+  .check-item {
+    display: flex; align-items: center; gap: 6px; padding: 2px 4px;
+    border-radius: 3px; cursor: pointer; user-select: none;
+  }
+  .check-item:hover { background: var(--bg4); }
+  .check-item input[type=checkbox] { accent-color: var(--accent2); cursor: pointer; }
+  .check-item .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .check-item label { cursor: pointer; flex: 1; color: var(--text); }
+  .check-item .count { color: var(--text3); font-size: 10px; }
+  .slider-row { padding: 4px; }
+  .slider-row label { display: flex; justify-content: space-between; color: var(--text2);
+    font-size: 11px; margin-bottom: 4px; }
+  input[type=range] { width: 100%; accent-color: var(--accent2); }
+
+  /* Graph Canvas */
+  #sigma-container { flex: 1; position: relative; background: var(--bg); }
+  #zoom-controls {
+    position: absolute; bottom: 16px; right: 16px; display: flex;
+    flex-direction: column; gap: 4px;
+  }
+  .zoom-btn {
+    width: 28px; height: 28px; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text); font-size: 16px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all .15s;
+  }
+  .zoom-btn:hover { background: var(--bg4); border-color: var(--accent); }
+  #loading-overlay {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; background: rgba(30,30,30,.85);
+    gap: 12px; pointer-events: none;
+  }
+  .spinner {
+    width: 36px; height: 36px; border: 3px solid var(--bg4);
+    border-top-color: var(--accent2); border-radius: 50%; animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading-overlay p { color: var(--text2); font-size: 12px; }
+
+  /* Right Detail Panel */
+  #detail-panel {
+    width: var(--detail-w); background: var(--bg2); border-left: 1px solid var(--border);
+    display: none; flex-direction: column; overflow: hidden; flex-shrink: 0;
+  }
+  #detail-panel.visible { display: flex; }
+  #detail-close {
+    background: none; border: none; color: var(--text2); cursor: pointer;
+    font-size: 16px; padding: 2px 6px; border-radius: 3px; line-height: 1;
+  }
+  #detail-close:hover { color: var(--text); background: var(--bg4); }
+  .detail-header { display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .detail-type-badge {
+    font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px;
+    text-transform: uppercase; letter-spacing: .5px;
+  }
+  .detail-name { font-size: 13px; font-weight: 600; padding: 10px 12px 4px;
+    word-break: break-all; flex-shrink: 0; }
+  .detail-meta { padding: 0 12px 8px; color: var(--text2); font-size: 11px;
+    line-height: 1.6; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .detail-meta span { color: var(--text3); }
+  .detail-code {
+    margin: 8px 12px; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 4px; overflow: hidden; flex-shrink: 0;
+  }
+  .detail-code pre {
+    padding: 8px; font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 11px; color: var(--text); overflow: auto; max-height: 180px;
+    line-height: 1.5; white-space: pre;
+  }
+  .conn-section { padding: 8px 12px; flex-shrink: 0; }
+  .conn-title { font-size: 10px; font-weight: 700; color: var(--text3);
+    text-transform: uppercase; letter-spacing: .6px; margin-bottom: 4px; }
+  .conn-list { display: flex; flex-direction: column; gap: 1px; overflow-y: auto; max-height: 140px; }
+  .conn-item {
+    display: flex; align-items: center; gap: 6px; padding: 4px 6px;
+    border-radius: 3px; cursor: pointer; font-size: 11px;
+  }
+  .conn-item:hover { background: var(--bg3); }
+  .conn-item .rel-type { color: var(--text3); font-size: 10px; flex-shrink: 0; }
+  .conn-item .node-name { color: var(--accent2); flex: 1; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<!-- ── Load Screen ──────────────────────────────────────────────── -->
+<div id="load-screen">
+  <h1>Git<span>Nexus</span> Graph Viewer</h1>
+  <div class="drop-zone" id="drop-zone">
+    <div class="icon">📂</div>
+    <strong>Drop graph.json here</strong>
+    <p>or click to browse file</p>
+    <input type="file" id="file-input" accept=".json" style="display:none">
+  </div>
+  <div class="or-divider">— OR CONNECT TO SERVER —</div>
+  <div class="url-row">
+    <input type="text" id="url-input" placeholder="http://127.0.0.1:4747/api/graph" value="http://127.0.0.1:4747/api/graph">
+    <button class="btn" id="fetch-btn">Connect</button>
+  </div>
+  <div id="load-error"></div>
+</div>
+
+<!-- ── App Layout ───────────────────────────────────────────────── -->
+<div id="app">
+  <!-- Toolbar -->
+  <div id="toolbar">
+    <span class="title">GitNexus</span>
+    <div class="tb-sep"></div>
+    <button class="icon-btn" id="btn-labels" title="Toggle labels">Labels</button>
+    <button class="icon-btn active" id="btn-hide-files" title="Hide File/Folder nodes">Hide Files</button>
+    <button class="icon-btn" id="btn-layout" title="Run ForceAtlas2 layout">Layout</button>
+    <button class="icon-btn" id="btn-reset" title="Reset view">Reset View</button>
+    <div class="tb-sep"></div>
+    <button class="icon-btn" id="btn-load" title="Load new file">Load New</button>
+    <div id="stats" style="margin-left:auto"></div>
+  </div>
+
+  <div id="main">
+    <!-- Left Sidebar: Filters -->
+    <div id="sidebar">
+      <div class="panel-header">Filters</div>
+      <div class="panel-scroll">
+        <input type="text" id="search-box" placeholder="Search nodes…">
+        <div class="filter-section">
+          <div class="filter-section-title">Node Types</div>
+          <div id="node-filters"></div>
+        </div>
+        <div class="filter-section">
+          <div class="filter-section-title">Relationship Types</div>
+          <div id="edge-filters"></div>
+        </div>
+        <div class="filter-section">
+          <div class="slider-row">
+            <label>Min Confidence <span id="conf-val">0.0</span></label>
+            <input type="range" id="conf-slider" min="0" max="1" step="0.05" value="0">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Graph Canvas -->
+    <div id="sigma-container">
+      <div id="loading-overlay">
+        <div class="spinner"></div>
+        <p id="loading-text">Initializing…</p>
+      </div>
+      <div id="zoom-controls">
+        <button class="zoom-btn" id="btn-zoom-in" title="Zoom in">+</button>
+        <button class="zoom-btn" id="btn-zoom-out" title="Zoom out">−</button>
+        <button class="zoom-btn" id="btn-zoom-reset" title="Fit graph" style="font-size:11px">⊡</button>
+      </div>
+    </div>
+
+    <!-- Right Detail Panel -->
+    <div id="detail-panel">
+      <div class="detail-header">
+        <span class="panel-header" style="border:none;padding:0">Node Detail</span>
+        <button id="detail-close">✕</button>
+      </div>
+      <div id="detail-content"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Constants ────────────────────────────────────────────────────────
+const NODE_COLORS = {
+  File: '#4FC1FF', Folder: '#C5A5C5', Function: '#98C379',
+  Class: '#C678DD', Interface: '#E5C07B', Method: '#61AFEF',
+  Community: '#E5915C', Process: '#E06C75', Variable: '#56B6C2',
+  Module: '#D19A66', Enum: '#E5C07B', Field: '#ABB2BF'
+};
+const EDGE_COLORS = {
+  CALLS: '#98C379', IMPORTS: '#61AFEF', EXTENDS: '#C678DD',
+  IMPLEMENTS: '#E5C07B', MEMBER_OF: '#E5915C', CONTAINS: '#56B6C2',
+  HAS_STEP: '#E06C75', DEPENDS_ON: '#D19A66', REFERENCES: '#ABB2BF'
+};
+const DEFAULT_NODE_COLOR = '#ABB2BF';
+const DEFAULT_EDGE_COLOR = '#4a4a4a';
+const HIDDEN_NODE_TYPES = new Set(['File', 'Folder']);
+
+// ── State ─────────────────────────────────────────────────────────────
+let sigmaInstance = null;
+let graph = null;
+let contentMap = {};          // nodeId -> content string
+let activeFilters = { nodes: new Set(), edges: new Set(), minConf: 0 };
+let showLabels = false;
+let hideFiles = true;
+let allNodeTypes = new Set();
+let allEdgeTypes = new Set();
+let layoutSupervisor = null;
+let searchHighlight = null;
+
+// ── Load Screen Logic ─────────────────────────────────────────────────
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const urlInput = document.getElementById('url-input');
+const loadError = document.getElementById('load-error');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) readFile(file);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) readFile(fileInput.files[0]); });
+document.getElementById('fetch-btn').addEventListener('click', () => fetchFromUrl(urlInput.value.trim()));
+
+function readFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => { try { initGraph(JSON.parse(e.target.result)); } catch { showLoadError('Invalid JSON file.'); } };
+  reader.onerror = () => showLoadError('Failed to read file.');
+  reader.readAsText(file);
+}
+
+async function fetchFromUrl(url) {
+  if (!url) return;
+  const btn = document.getElementById('fetch-btn');
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    initGraph(await res.json());
+  } catch (err) {
+    showLoadError(`Failed to connect: ${err.message}`);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Connect';
+  }
+}
+
+function showLoadError(msg) { loadError.textContent = msg; loadError.style.display = 'block'; }
+
+// ── Graph Initialization ───────────────────────────────────────────────
+function initGraph(data) {
+  if (!data.nodes?.length) return showLoadError('No nodes found in data.');
+
+  document.getElementById('load-screen').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  setLoading(true, 'Building graph…');
+
+  graph = new graphology.Graph({ multi: false, allowSelfLoops: false });
+  contentMap = {};
+
+  // Build node type distribution
+  const nodeDegrees = {};
+  data.relationships.forEach(r => {
+    nodeDegrees[r.sourceId] = (nodeDegrees[r.sourceId] || 0) + 1;
+    nodeDegrees[r.targetId] = (nodeDegrees[r.targetId] || 0) + 1;
+  });
+
+  data.nodes.forEach(n => {
+    const label = n.label || 'Unknown';
+    allNodeTypes.add(label);
+    const deg = nodeDegrees[n.id] || 1;
+    const size = Math.max(3, Math.min(18, 3 + Math.log2(deg + 1) * 2));
+    const color = NODE_COLORS[label] || DEFAULT_NODE_COLOR;
+    const props = n.properties || {};
+
+    // Strip content from render, store separately
+    if (props.content) { contentMap[n.id] = props.content; }
+
+    const name = props.name || n.id;
+    graph.addNode(n.id, {
+      label: name, nodeLabel: label, size, color,
+      x: Math.random() * 1000, y: Math.random() * 1000,
+      filePath: props.filePath || '', startLine: props.startLine,
+      endLine: props.endLine, heuristicLabel: props.heuristicLabel,
+      cohesion: props.cohesion, processType: props.processType,
+      symbolCount: props.symbolCount, stepCount: props.stepCount,
+      hidden: false
+    });
+  });
+
+  let edgesAdded = 0;
+  data.relationships.forEach(r => {
+    if (!graph.hasNode(r.sourceId) || !graph.hasNode(r.targetId)) return;
+    if (graph.hasEdge(r.sourceId, r.targetId)) return;
+    const type = r.type || 'RELATED';
+    allEdgeTypes.add(type);
+    const conf = r.confidence ?? 1;
+    const color = EDGE_COLORS[type] || DEFAULT_EDGE_COLOR;
+    try {
+      graph.addEdge(r.sourceId, r.targetId, {
+        edgeType: type, confidence: conf, color,
+        size: 1, reason: r.reason || '', step: r.step,
+        hidden: false
+      });
+      edgesAdded++;
+    } catch { /* skip duplicate */ }
+  });
+
+  activeFilters.nodes = new Set(allNodeTypes);
+  activeFilters.edges = new Set(allEdgeTypes);
+
+  buildFilterUI();
+  applyFilters();
+  initSigma();
+  updateStats();
+}
+
+// ── Sigma Initialization ────────────────────────────────────────────────
+function initSigma() {
+  if (sigmaInstance) { sigmaInstance.kill(); sigmaInstance = null; }
+
+  setLoading(true, 'Rendering graph…');
+
+  sigmaInstance = new Sigma(graph, document.getElementById('sigma-container'), {
+    renderLabels: showLabels,
+    labelRenderedSizeThreshold: showLabels ? -Infinity : 8,
+    defaultEdgeColor: DEFAULT_EDGE_COLOR,
+    defaultNodeColor: DEFAULT_NODE_COLOR,
+    nodeReducer: nodeReducer,
+    edgeReducer: edgeReducer,
+    minCameraRatio: 0.01,
+    maxCameraRatio: 10,
+    labelFont: 'Segoe UI, system-ui, sans-serif',
+    labelSize: 11,
+    labelColor: { color: '#d4d4d4' },
+  });
+
+  sigmaInstance.on('clickNode', ({ node }) => showDetail(node));
+  sigmaInstance.on('clickStage', () => {
+    searchHighlight = null;
+    sigmaInstance.refresh();
+  });
+
+  sigmaInstance.getCamera().on('updated', () => {
+    const ratio = sigmaInstance.getCamera().ratio;
+    if (!showLabels) {
+      sigmaInstance.setSetting('labelRenderedSizeThreshold', ratio < 0.3 ? 6 : 14);
+    }
+  });
+
+  runLayout();
+}
+
+function nodeReducer(node, data) {
+  if (data.hidden) return { ...data, hidden: true };
+  if (searchHighlight && node !== searchHighlight && !graph.neighbors(searchHighlight).includes(node)) {
+    return { ...data, color: '#2a2a2a', size: data.size * 0.6 };
+  }
+  if (searchHighlight === node) return { ...data, size: data.size * 1.5, zIndex: 1 };
+  return data;
+}
+
+function edgeReducer(edge, data) {
+  if (data.hidden) return { ...data, hidden: true };
+  const conf = data.confidence ?? 1;
+  return { ...data, color: data.color, size: Math.max(0.5, conf * 1.5), hidden: false };
+}
+
+// ── ForceAtlas2 Layout ──────────────────────────────────────────────────
+function runLayout() {
+  if (layoutSupervisor) { layoutSupervisor.stop(); layoutSupervisor = null; }
+  setLoading(true, 'Running layout…');
+
+  const visibleCount = graph.filterNodes((n, a) => !a.hidden).length;
+
+  // Assign initial circular positions for better convergence
+  let i = 0;
+  graph.forEachNode((n, attrs) => {
+    if (!attrs.hidden) {
+      const angle = (i++ / visibleCount) * Math.PI * 2;
+      graph.setNodeAttribute(n, 'x', Math.cos(angle) * 500);
+      graph.setNodeAttribute(n, 'y', Math.sin(angle) * 500);
+    }
+  });
+
+  try {
+    layoutSupervisor = new graphologyLayoutForceAtlas2.WorkerSupervisor(graph, {
+      settings: {
+        gravity: 1, scalingRatio: 10, strongGravityMode: false,
+        linLogMode: false, adjustSizes: false, barnesHutOptimize: visibleCount > 1000,
+        barnesHutTheta: 0.5, slowDown: 5
+      }
+    });
+    layoutSupervisor.start();
+    setTimeout(() => {
+      if (layoutSupervisor) { layoutSupervisor.stop(); layoutSupervisor = null; }
+      setLoading(false);
+      if (sigmaInstance) sigmaInstance.getCamera().animatedReset();
+    }, visibleCount > 5000 ? 6000 : visibleCount > 2000 ? 4000 : 2500);
+  } catch {
+    // Fallback: synchronous layout
+    graphologyLayoutForceAtlas2.assign(graph, { iterations: 100 });
+    setLoading(false);
+    if (sigmaInstance) sigmaInstance.getCamera().animatedReset();
+  }
+}
+
+// ── Filter Logic ──────────────────────────────────────────────────────
+function buildFilterUI() {
+  const nf = document.getElementById('node-filters');
+  const ef = document.getElementById('edge-filters');
+  nf.innerHTML = ''; ef.innerHTML = '';
+
+  const nodeCounts = {}; const edgeCounts = {};
+  graph.forEachNode((n, a) => { nodeCounts[a.nodeLabel] = (nodeCounts[a.nodeLabel] || 0) + 1; });
+  graph.forEachEdge((e, a) => { edgeCounts[a.edgeType] = (edgeCounts[a.edgeType] || 0) + 1; });
+
+  [...allNodeTypes].sort().forEach(type => {
+    nf.appendChild(makeCheckItem(type, NODE_COLORS[type] || DEFAULT_NODE_COLOR,
+      nodeCounts[type] || 0, true, () => toggleNodeFilter(type)));
+  });
+  [...allEdgeTypes].sort().forEach(type => {
+    ef.appendChild(makeCheckItem(type, EDGE_COLORS[type] || DEFAULT_EDGE_COLOR,
+      edgeCounts[type] || 0, true, () => toggleEdgeFilter(type)));
+  });
+}
+
+function makeCheckItem(label, color, count, checked, onChange) {
+  const div = document.createElement('div'); div.className = 'check-item';
+  const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = checked;
+  cb.addEventListener('change', onChange);
+  const dot = document.createElement('span'); dot.className = 'dot'; dot.style.background = color;
+  const lbl = document.createElement('label'); lbl.textContent = label;
+  const cnt = document.createElement('span'); cnt.className = 'count'; cnt.textContent = count;
+  div.append(cb, dot, lbl, cnt);
+  lbl.addEventListener('click', () => { cb.checked = !cb.checked; onChange(); });
+  return div;
+}
+
+function toggleNodeFilter(type) {
+  if (activeFilters.nodes.has(type)) activeFilters.nodes.delete(type);
+  else activeFilters.nodes.add(type);
+  applyFilters();
+}
+
+function toggleEdgeFilter(type) {
+  if (activeFilters.edges.has(type)) activeFilters.edges.delete(type);
+  else activeFilters.edges.add(type);
+  applyFilters();
+}
+
+document.getElementById('conf-slider').addEventListener('input', e => {
+  activeFilters.minConf = parseFloat(e.target.value);
+  document.getElementById('conf-val').textContent = activeFilters.minConf.toFixed(2);
+  applyFilters();
+});
+
+function applyFilters() {
+  graph.forEachNode((node, attrs) => {
+    const inNodeFilter = activeFilters.nodes.has(attrs.nodeLabel);
+    const inHideFiles = hideFiles && HIDDEN_NODE_TYPES.has(attrs.nodeLabel);
+    graph.setNodeAttribute(node, 'hidden', !inNodeFilter || inHideFiles);
+  });
+  graph.forEachEdge((edge, attrs) => {
+    const src = graph.getNodeAttribute(graph.source(edge), 'hidden');
+    const tgt = graph.getNodeAttribute(graph.target(edge), 'hidden');
+    const inEdgeFilter = activeFilters.edges.has(attrs.edgeType);
+    const aboveConf = (attrs.confidence ?? 1) >= activeFilters.minConf;
+    graph.setEdgeAttribute(edge, 'hidden', src || tgt || !inEdgeFilter || !aboveConf);
+  });
+  if (sigmaInstance) sigmaInstance.refresh();
+  updateStats();
+}
+
+// ── Search ──────────────────────────────────────────────────────────────
+document.getElementById('search-box').addEventListener('input', e => {
+  const q = e.target.value.trim().toLowerCase();
+  if (!q) { searchHighlight = null; if (sigmaInstance) sigmaInstance.refresh(); return; }
+  let best = null;
+  graph.forEachNode((node, attrs) => {
+    if (!attrs.hidden && attrs.label.toLowerCase().includes(q)) {
+      if (!best) best = node;
+    }
+  });
+  searchHighlight = best;
+  if (best && sigmaInstance) {
+    const pos = sigmaInstance.getNodeDisplayedCoordinates(best);
+    sigmaInstance.getCamera().animate({ ...sigmaInstance.graphToViewport(
+      graph.getNodeAttribute(best, 'x'), graph.getNodeAttribute(best, 'y')), ratio: 0.5 }, { duration: 500 });
+    sigmaInstance.refresh();
+  }
+});
+
+// ── Node Detail Panel ──────────────────────────────────────────────────
+function showDetail(nodeId) {
+  const attrs = graph.getNodeAttributes(nodeId);
+  const panel = document.getElementById('detail-panel');
+  const content = document.getElementById('detail-content');
+  const color = attrs.color || DEFAULT_NODE_COLOR;
+
+  let html = `<div class="detail-name">${attrs.label}</div>
+  <div class="detail-meta">
+    <span>Type:</span> ${attrs.nodeLabel}<br>
+    ${attrs.filePath ? `<span>Path:</span> ${attrs.filePath}<br>` : ''}
+    ${attrs.startLine != null ? `<span>Lines:</span> ${attrs.startLine}–${attrs.endLine}<br>` : ''}
+    ${attrs.heuristicLabel ? `<span>Topic:</span> ${attrs.heuristicLabel}<br>` : ''}
+    ${attrs.cohesion != null ? `<span>Cohesion:</span> ${(attrs.cohesion * 100).toFixed(0)}%<br>` : ''}
+    ${attrs.processType ? `<span>Process:</span> ${attrs.processType}<br>` : ''}
+    ${attrs.symbolCount != null ? `<span>Symbols:</span> ${attrs.symbolCount}<br>` : ''}
+  </div>`;
+
+  const nodeContent = contentMap[nodeId];
+  if (nodeContent) {
+    const escaped = nodeContent.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    html += `<div class="detail-code"><pre>${escaped}</pre></div>`;
+  }
+
+  // Connections
+  const inEdges = graph.inEdges(nodeId).filter(e => !graph.getEdgeAttribute(e, 'hidden'));
+  const outEdges = graph.outEdges(nodeId).filter(e => !graph.getEdgeAttribute(e, 'hidden'));
+
+  if (outEdges.length) {
+    html += `<div class="conn-section"><div class="conn-title">Outgoing (${outEdges.length})</div><div class="conn-list">`;
+    outEdges.slice(0, 30).forEach(e => {
+      const tgt = graph.target(e); const ta = graph.getNodeAttributes(tgt);
+      html += `<div class="conn-item" data-node="${tgt}">
+        <span class="rel-type">${graph.getEdgeAttribute(e,'edgeType')}</span>
+        <span class="node-name">${ta.label}</span></div>`;
+    });
+    html += '</div></div>';
+  }
+  if (inEdges.length) {
+    html += `<div class="conn-section"><div class="conn-title">Incoming (${inEdges.length})</div><div class="conn-list">`;
+    inEdges.slice(0, 30).forEach(e => {
+      const src = graph.source(e); const sa = graph.getNodeAttributes(src);
+      html += `<div class="conn-item" data-node="${src}">
+        <span class="rel-type">${graph.getEdgeAttribute(e,'edgeType')}</span>
+        <span class="node-name">${sa.label}</span></div>`;
+    });
+    html += '</div></div>';
+  }
+
+  content.innerHTML = html;
+  content.querySelectorAll('.conn-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const n = el.dataset.node;
+      searchHighlight = n;
+      sigmaInstance.refresh();
+      const na = graph.getNodeAttributes(n);
+      sigmaInstance.getCamera().animate(
+        { ...sigmaInstance.graphToViewport(na.x, na.y), ratio: 0.5 }, { duration: 400 }
+      );
+      showDetail(n);
+    });
+  });
+
+  // Badge
+  const header = panel.querySelector('.detail-header');
+  let badge = header.querySelector('.detail-type-badge');
+  if (!badge) { badge = document.createElement('span'); badge.className = 'detail-type-badge'; header.prepend(badge); }
+  badge.textContent = attrs.nodeLabel;
+  badge.style.background = color + '33';
+  badge.style.color = color;
+
+  panel.classList.add('visible');
+}
+
+document.getElementById('detail-close').addEventListener('click', () => {
+  document.getElementById('detail-panel').classList.remove('visible');
+  searchHighlight = null;
+  if (sigmaInstance) sigmaInstance.refresh();
+});
+
+// ── Controls ──────────────────────────────────────────────────────────
+document.getElementById('btn-zoom-in').addEventListener('click', () =>
+  sigmaInstance?.getCamera().animatedZoom({ duration: 300 }));
+document.getElementById('btn-zoom-out').addEventListener('click', () =>
+  sigmaInstance?.getCamera().animatedUnzoom({ duration: 300 }));
+document.getElementById('btn-zoom-reset').addEventListener('click', () =>
+  sigmaInstance?.getCamera().animatedReset({ duration: 400 }));
+document.getElementById('btn-reset').addEventListener('click', () =>
+  sigmaInstance?.getCamera().animatedReset({ duration: 400 }));
+
+document.getElementById('btn-labels').addEventListener('click', () => {
+  showLabels = !showLabels;
+  document.getElementById('btn-labels').classList.toggle('active', showLabels);
+  if (sigmaInstance) {
+    sigmaInstance.setSetting('renderLabels', showLabels);
+    sigmaInstance.setSetting('labelRenderedSizeThreshold', showLabels ? -Infinity : 14);
+    sigmaInstance.refresh();
+  }
+});
+
+document.getElementById('btn-hide-files').addEventListener('click', () => {
+  hideFiles = !hideFiles;
+  document.getElementById('btn-hide-files').classList.toggle('active', hideFiles);
+  applyFilters();
+});
+
+document.getElementById('btn-layout').addEventListener('click', () => {
+  if (layoutSupervisor) { layoutSupervisor.stop(); layoutSupervisor = null; setLoading(false); return; }
+  runLayout();
+});
+
+document.getElementById('btn-load').addEventListener('click', () => {
+  if (sigmaInstance) { sigmaInstance.kill(); sigmaInstance = null; }
+  if (layoutSupervisor) { layoutSupervisor.stop(); layoutSupervisor = null; }
+  graph = null; allNodeTypes.clear(); allEdgeTypes.clear(); contentMap = {};
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('load-screen').style.display = 'flex';
+  document.getElementById('detail-panel').classList.remove('visible');
+  document.getElementById('load-error').style.display = 'none';
+});
+
+// ── Utility ───────────────────────────────────────────────────────────
+function setLoading(show, text = '') {
+  const overlay = document.getElementById('loading-overlay');
+  overlay.style.display = show ? 'flex' : 'none';
+  if (text) document.getElementById('loading-text').textContent = text;
+}
+
+function updateStats() {
+  if (!graph) return;
+  const visNodes = graph.filterNodes((n, a) => !a.hidden).length;
+  const visEdges = graph.filterEdges((e, a) => !a.hidden).length;
+  document.getElementById('stats').textContent =
+    `${visNodes.toLocaleString()} nodes · ${visEdges.toLocaleString()} edges (of ${graph.order.toLocaleString()} / ${graph.size.toLocaleString()})`;
+}
+</script>
+</body>
+</html>
