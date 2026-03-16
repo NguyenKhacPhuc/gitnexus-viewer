@@ -293,7 +293,6 @@ let showLabels = false;
 let hideFiles = true;
 let allNodeTypes = new Set();
 let allEdgeTypes = new Set();
-let layoutSupervisor = null;
 let searchHighlight = null;
 
 // ── Load Screen Logic ─────────────────────────────────────────────────
@@ -458,7 +457,6 @@ function edgeReducer(edge, data) {
 
 // ── ForceAtlas2 Layout ──────────────────────────────────────────────────
 function runLayout() {
-  if (layoutSupervisor) { layoutSupervisor.stop(); layoutSupervisor = null; }
   setLoading(true, 'Running layout…');
 
   const visibleCount = graph.filterNodes((n, a) => !a.hidden).length;
@@ -473,26 +471,18 @@ function runLayout() {
     }
   });
 
-  try {
-    layoutSupervisor = new graphologyLayoutForceAtlas2.WorkerSupervisor(graph, {
-      settings: {
-        gravity: 1, scalingRatio: 10, strongGravityMode: false,
-        linLogMode: false, adjustSizes: false, barnesHutOptimize: visibleCount > 1000,
-        barnesHutTheta: 0.5, slowDown: 5
-      }
-    });
-    layoutSupervisor.start();
-    setTimeout(() => {
-      if (layoutSupervisor) { layoutSupervisor.stop(); layoutSupervisor = null; }
-      setLoading(false);
-      if (sigmaInstance) sigmaInstance.getCamera().animatedReset();
-    }, visibleCount > 5000 ? 6000 : visibleCount > 2000 ? 4000 : 2500);
-  } catch {
-    // Fallback: synchronous layout
-    graphologyLayoutForceAtlas2.assign(graph, { iterations: 100 });
-    setLoading(false);
-    if (sigmaInstance) sigmaInstance.getCamera().animatedReset();
-  }
+  // Synchronous layout — works on file:// (WorkerSupervisor needs http)
+  const iterations = visibleCount > 5000 ? 50 : visibleCount > 2000 ? 80 : 150;
+  graphologyLayoutForceAtlas2.assign(graph, {
+    iterations,
+    settings: {
+      gravity: 1, scalingRatio: 10, strongGravityMode: false,
+      linLogMode: false, adjustSizes: false, barnesHutOptimize: visibleCount > 1000,
+      barnesHutTheta: 0.5, slowDown: 5
+    }
+  });
+  setLoading(false);
+  if (sigmaInstance) sigmaInstance.getCamera().animatedReset();
 }
 
 // ── Filter Logic ──────────────────────────────────────────────────────
@@ -687,14 +677,10 @@ document.getElementById('btn-hide-files').addEventListener('click', () => {
   applyFilters();
 });
 
-document.getElementById('btn-layout').addEventListener('click', () => {
-  if (layoutSupervisor) { layoutSupervisor.stop(); layoutSupervisor = null; setLoading(false); return; }
-  runLayout();
-});
+document.getElementById('btn-layout').addEventListener('click', () => runLayout());
 
 document.getElementById('btn-load').addEventListener('click', () => {
   if (sigmaInstance) { sigmaInstance.kill(); sigmaInstance = null; }
-  if (layoutSupervisor) { layoutSupervisor.stop(); layoutSupervisor = null; }
   graph = null; allNodeTypes.clear(); allEdgeTypes.clear(); contentMap = {};
   document.getElementById('app').classList.remove('visible');
   document.getElementById('load-screen').style.display = 'flex';
