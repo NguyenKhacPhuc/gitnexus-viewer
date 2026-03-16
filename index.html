@@ -189,134 +189,161 @@ function getGroup(name) {
 
 // ── Drill-down node types (BA-friendly) ─────────────────────────────────
 const DRILL_TYPES = {
-  screen:     { icon: '📱', color: '#34d399', label: 'Screen' },
-  action:     { icon: '👆', color: '#fb923c', label: 'User Action' },
-  navigate:   { icon: '🧭', color: '#38bdf8', label: 'Navigation' },
-  loading:    { icon: '⏳', color: '#a78bfa', label: 'Loading' },
-  error:      { icon: '❌', color: '#f87171', label: 'Error State' },
-  success:    { icon: '✅', color: '#34d399', label: 'Success' },
-  data:       { icon: '📡', color: '#f472b6', label: 'Loads Data' },
+  screen:   { icon: '📱', color: '#34d399', label: 'Screen' },
+  trigger:  { icon: '👆', color: '#fb923c', label: 'User Trigger' },
+  navigate: { icon: '🧭', color: '#38bdf8', label: 'Goes To' },
 };
 
 function pretty(name) { return name.split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); }
+function friendlyName(s) { return s.replace(/([a-z])([A-Z])/g, '$1 $2'); }
 
-// ── Extract user actions from onEvent / Event sealed class ──────────────
-function extractUserActions(nodes) {
-  const actions = [];
-  const seen = new Set();
+// ── Parse onEvent → HandleEffects to build event-to-navigation map ──────
+function parseFeatureFlows(nodes) {
+  // Step 1: Collect all event names from Event sealed class
+  const eventNames = new Set();
+  // Step 2: Map event → effect(s) from onEvent when-blocks
+  const eventToEffects = {};   // { "SignIn": ["NavigateToHome"] }
+  // Step 3: Map effect → navigation destination from HandleEffects when-blocks
+  const effectToNav = {};      // { "NavigateToHome": "Home" }
+  // Step 4: Standalone events (no linked effect)
+  const allEffectNames = new Set();
+
   nodes.forEach(n => {
     const content = n.properties?.content || '';
     const name = n.properties?.name || '';
     const lname = name.toLowerCase();
 
-    // 1) Sealed class/interface Event members → user actions
-    if (lname.includes('event') && (n.label === 'Class' || n.label === 'Interface')) {
-      // Parse sealed class members: data class Xxx, object Xxx, data object Xxx
+    // ── Event sealed class: collect member names ──
+    if (lname.includes('event') && !lname.includes('effect') && (n.label === 'Class' || n.label === 'Interface')) {
       const memberRe = /(?:data\s+)?(?:class|object)\s+(\w+)/g;
       let m;
       while ((m = memberRe.exec(content)) !== null) {
+        const ev = m[1];
+        if (['Companion','Event','Serializable'].includes(ev)) continue;
+        if (ev === name) continue; // skip the sealed class itself
+        eventNames.add(ev);
+      }
+    }
+
+    // ── onEvent / when(event) blocks: map event → emitted effect ──
+    if (content.includes('onEvent') || content.includes('when') && /Event/.test(content)) {
+      // Split by "is XxxEvent.Yyy" to get per-event code blocks
+      const caseRe = /is\s+\w*Event\.(\w+)\s*->\s*\{?([\s\S]*?)(?=is\s+\w*Event\.|$)/g;
+      let m;
+      while ((m = caseRe.exec(content)) !== null) {
         const evName = m[1];
-        if (['Companion','Event'].includes(evName)) continue;
-        const friendly = evName.replace(/([a-z])([A-Z])/g, '$1 $2');
-        if (!seen.has(friendly)) { seen.add(friendly); actions.push({ id: `action_${evName}`, label: friendly, source: name }); }
+        const block = m[2];
+        eventNames.add(evName);
+        // Look for emitted effects in this block: emit(XxxEffect.Yyy), _effect.emit(Yyy), sendEffect(Yyy)
+        const effectRe = /(?:emit|send|trigger|_effect)\s*[\(.]\s*\w*(?:Effect|SideEffect)\.(\w+)/gi;
+        let em;
+        while ((em = effectRe.exec(block)) !== null) {
+          if (!eventToEffects[evName]) eventToEffects[evName] = [];
+          if (!eventToEffects[evName].includes(em[1])) eventToEffects[evName].push(em[1]);
+          allEffectNames.add(em[1]);
+        }
       }
     }
 
-    // 2) onEvent lambda — match "is XxxEvent.Yyy" patterns
-    if (content.includes('onEvent') || lname.includes('onevent')) {
-      const isRe = /is\s+\w*Event\.(\w+)/g;
-      let m;
-      while ((m = isRe.exec(content)) !== null) {
-        const friendly = m[1].replace(/([a-z])([A-Z])/g, '$1 $2');
-        if (!seen.has(friendly)) { seen.add(friendly); actions.push({ id: `action_${m[1]}`, label: friendly, source: name }); }
-      }
-    }
-  });
-  return actions;
-}
-
-// ── Extract navigation from HandleEffects / Effect sealed class ─────────
-function extractNavigations(nodes, allScreenNames) {
-  const navs = [];
-  const seen = new Set();
-  const screenLower = allScreenNames.map(s => s.toLowerCase());
-
-  nodes.forEach(n => {
-    const content = n.properties?.content || '';
-    const name = n.properties?.name || '';
-
-    // HandleEffects / LaunchedEffect with navigation
-    if (content.toLowerCase().includes('handleeffect') || content.toLowerCase().includes('effect')) {
-      // Match patterns like: navigate("home"), NavigateTo(Screen.Home), navController.navigate, Direction.Home, Route.Home
-      const navRe = /(?:navigate|NavigateTo|direction|route|destination|popBackStack|popUpTo)\s*[\(\.]?\s*["']?(\w+)/gi;
-      let m;
-      while ((m = navRe.exec(content)) !== null) {
-        const dest = m[1];
-        if (['this','it','null','true','false','context','scope'].includes(dest.toLowerCase())) continue;
-        const friendly = dest.replace(/([a-z])([A-Z])/g, '$1 $2');
-        if (!seen.has(dest.toLowerCase())) { seen.add(dest.toLowerCase()); navs.push({ id: `nav_${dest}`, label: friendly, raw: dest }); }
-      }
-
-      // Match "is XxxEffect.NavigateToYyy" or "is XxxEffect.GoToYyy"
-      const effectRe = /is\s+\w*(?:Effect|SideEffect)\.(\w*(?:Navigate|GoTo|Open|Show|Back|Pop|Close)\w*)/gi;
-      while ((m = effectRe.exec(content)) !== null) {
-        const friendly = m[1].replace(/([a-z])([A-Z])/g, '$1 $2');
-        if (!seen.has(m[1].toLowerCase())) { seen.add(m[1].toLowerCase()); navs.push({ id: `nav_${m[1]}`, label: friendly, raw: m[1] }); }
-      }
-    }
-
-    // Also check Effect sealed class for navigation-related effects
-    const lname = name.toLowerCase();
+    // ── Effect sealed class: collect all effect member names ──
     if ((lname.includes('effect') || lname.includes('sideeffect')) && (n.label === 'Class' || n.label === 'Interface')) {
-      const memberRe = /(?:data\s+)?(?:class|object)\s+(\w*(?:Navigate|GoTo|Open|Show|Back|Pop|Close|Route)\w*)/gi;
+      const memberRe = /(?:data\s+)?(?:class|object)\s+(\w+)/g;
       let m;
       while ((m = memberRe.exec(content)) !== null) {
-        const friendly = m[1].replace(/([a-z])([A-Z])/g, '$1 $2');
-        if (!seen.has(m[1].toLowerCase())) { seen.add(m[1].toLowerCase()); navs.push({ id: `nav_${m[1]}`, label: friendly, raw: m[1] }); }
+        const eff = m[1];
+        if (['Companion','Effect','SideEffect','Serializable'].includes(eff)) continue;
+        if (eff === name) continue;
+        allEffectNames.add(eff);
+      }
+    }
+
+    // ── HandleEffects: map effect → navigation destination ──
+    if (content.toLowerCase().includes('handleeffect') || content.toLowerCase().includes('handleeffects')) {
+      // Match "is XxxEffect.Yyy -> { ... navigate(ZzzDirection) ... }"
+      const caseRe = /is\s+\w*(?:Effect|SideEffect)\.(\w+)\s*->\s*\{?([\s\S]*?)(?=is\s+\w*(?:Effect|SideEffect)\.|$)/gi;
+      let m;
+      while ((m = caseRe.exec(content)) !== null) {
+        const effName = m[1];
+        const block = m[2];
+        // Look for navigation calls
+        const navRe = /(?:navigate|navigator\.\w+|navController\.\w+|popBackStack|direction|Direction|Route)\s*[\(.]\s*["']?(\w+)/gi;
+        let nm;
+        while ((nm = navRe.exec(block)) !== null) {
+          const dest = nm[1];
+          if (['this','it','null','true','false','context','scope','invoke','get'].includes(dest.toLowerCase())) continue;
+          effectToNav[effName] = dest;
+        }
+        // Also match: XxxDirection, XxxRoute patterns directly
+        const dirRe = /(\w+)(?:Direction|Route|Screen|Destination)/g;
+        let dr;
+        while ((dr = dirRe.exec(block)) !== null) {
+          if (!effectToNav[effName]) effectToNav[effName] = dr[1];
+        }
       }
     }
   });
-  return navs;
-}
 
-// ── Extract states (loading, error, success) from State/UiState ─────────
-function extractStates(nodes) {
-  const states = [];
-  const seen = new Set();
-  nodes.forEach(n => {
-    const content = n.properties?.content || '';
-    const name = n.properties?.name || '';
-    const lname = name.toLowerCase();
+  // ── Build flows: event → destination ──
+  const flows = []; // [{ trigger, destination }]
+  const usedEvents = new Set();
 
-    if (lname.includes('state') || lname.includes('uistate')) {
-      // Look for boolean/enum fields: isLoading, error, isSuccess, etc.
-      if (/isloading|loading\s*[:=]/i.test(content) && !seen.has('loading'))
-        { seen.add('loading'); states.push({ id: 'state_loading', label: 'Loading', type: 'loading' }); }
-      if (/error|failure|exception/i.test(content) && !seen.has('error'))
-        { seen.add('error'); states.push({ id: 'state_error', label: 'Error', type: 'error' }); }
-      if (/success|loaded|isReady|result/i.test(content) && !seen.has('success'))
-        { seen.add('success'); states.push({ id: 'state_success', label: 'Success', type: 'success' }); }
-    }
-  });
-  return states;
-}
-
-// ── Extract data sources (repository/usecase calls) ─────────────────────
-function extractDataSources(nodes) {
-  const sources = [];
-  const seen = new Set();
-  nodes.forEach(n => {
-    const name = n.properties?.name || '';
-    const lname = name.toLowerCase();
-    if (lname.includes('repository') || lname.includes('usecase') || lname.includes('datasource') || lname.includes('interactor')) {
-      const friendly = name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/Repository|UseCase|DataSource|Interactor/gi, '').trim();
-      if (friendly && !seen.has(friendly.toLowerCase())) {
-        seen.add(friendly.toLowerCase());
-        sources.push({ id: `data_${name}`, label: friendly || name });
+  // Events with linked effects → navigation
+  for (const [evName, effects] of Object.entries(eventToEffects)) {
+    for (const eff of effects) {
+      const dest = effectToNav[eff];
+      if (dest) {
+        flows.push({
+          triggerId: 'trigger_' + evName,
+          triggerLabel: friendlyName(evName),
+          navId: 'nav_' + eff,
+          navLabel: friendlyName(dest),
+          effect: eff
+        });
+        usedEvents.add(evName);
+      } else {
+        // Effect exists but no navigation found — it's a non-nav effect (show dialog, toast, etc.)
+        const friendlyEff = friendlyName(eff)
+          .replace(/Navigate\s*To\s*/i, '').replace(/Go\s*To\s*/i, '').replace(/Open\s*/i, '').replace(/Show\s*/i, '');
+        flows.push({
+          triggerId: 'trigger_' + evName,
+          triggerLabel: friendlyName(evName),
+          navId: 'nav_' + eff,
+          navLabel: friendlyEff || friendlyName(eff),
+          effect: eff
+        });
+        usedEvents.add(evName);
       }
     }
-  });
-  return sources;
+  }
+
+  // Remaining events with no linked effect — show as standalone triggers
+  for (const ev of eventNames) {
+    if (!usedEvents.has(ev)) {
+      flows.push({
+        triggerId: 'trigger_' + ev,
+        triggerLabel: friendlyName(ev),
+        navId: null,
+        navLabel: null,
+        effect: null
+      });
+    }
+  }
+
+  // Effects in HandleEffects that have navigation but weren't linked to a specific event
+  for (const [eff, dest] of Object.entries(effectToNav)) {
+    const alreadyLinked = flows.some(f => f.effect === eff);
+    if (!alreadyLinked) {
+      flows.push({
+        triggerId: null,
+        triggerLabel: null,
+        navId: 'nav_' + eff,
+        navLabel: friendlyName(dest),
+        effect: eff
+      });
+    }
+  }
+
+  return flows;
 }
 
 // ── State ───────────────────────────────────────────────────────────────
@@ -462,129 +489,81 @@ function drillInto(featureId) {
     featureRawNodes.push(n);
   });
 
-  const allScreenNames = screens.map(s => s.id);
+  // Parse onEvent + HandleEffects to get flows
+  const flows = parseFeatureFlows(featureRawNodes);
 
-  // Extract BA-friendly elements from source code
-  const userActions = extractUserActions(featureRawNodes);
-  const navigations = extractNavigations(featureRawNodes, allScreenNames);
-  const states = extractStates(featureRawNodes);
-  const dataSources = extractDataSources(featureRawNodes);
-
-  // Build drill-down nodes
+  // Build drill-down nodes from flows
   const drillNodes = [];
   const dnMap = {};
 
-  // 1) Screen node at the top
+  // Screen node at the top
   const screenMeta = SCREEN_META[featureId] || DEFAULT_META;
   const screenNode = {
-    id: 'screen_' + featureId, label: screenMeta.icon + ' ' + pretty(featureId),
-    prettyName: pretty(featureId), icon: screenMeta.icon, desc: screenMeta.desc,
+    id: 'screen_' + featureId, prettyName: pretty(featureId),
+    icon: screenMeta.icon, desc: screenMeta.desc,
     type: 'screen', color: DRILL_TYPES.screen.color, typeLabel: 'Screen',
     connectsTo: [], connectedFrom: []
   };
   drillNodes.push(screenNode); dnMap[screenNode.id] = screenNode;
 
-  // 2) User action nodes (from onEvent)
-  userActions.forEach(a => {
-    const node = {
-      id: a.id, label: '👆 ' + a.label, prettyName: a.label,
-      icon: '👆', desc: 'User taps or triggers: ' + a.label,
-      type: 'action', color: DRILL_TYPES.action.color, typeLabel: 'User Action',
-      connectsTo: [], connectedFrom: []
-    };
-    drillNodes.push(node); dnMap[node.id] = node;
-    // Screen → Action
-    screenNode.connectsTo.push(node.id);
-    node.connectedFrom.push(screenNode.id);
+  // Deduplicate trigger and nav nodes across flows
+  const triggerNodes = {}; // id → node
+  const navNodes = {};     // id → node
+
+  flows.forEach(f => {
+    // Create trigger node if exists
+    if (f.triggerId && !triggerNodes[f.triggerId]) {
+      const node = {
+        id: f.triggerId, prettyName: f.triggerLabel,
+        icon: '👆', desc: 'User interaction: ' + f.triggerLabel,
+        type: 'trigger', color: DRILL_TYPES.trigger.color, typeLabel: 'User Trigger',
+        connectsTo: [], connectedFrom: []
+      };
+      triggerNodes[f.triggerId] = node;
+      drillNodes.push(node); dnMap[node.id] = node;
+      // Screen → Trigger
+      screenNode.connectsTo.push(node.id);
+      node.connectedFrom.push(screenNode.id);
+    }
+
+    // Create nav node if exists
+    if (f.navId && !navNodes[f.navId]) {
+      const node = {
+        id: f.navId, prettyName: f.navLabel,
+        icon: '🧭', desc: 'Navigates to: ' + f.navLabel,
+        type: 'navigate', color: DRILL_TYPES.navigate.color, typeLabel: 'Goes To',
+        connectsTo: [], connectedFrom: []
+      };
+      navNodes[f.navId] = node;
+      drillNodes.push(node); dnMap[node.id] = node;
+    }
+
+    // Link trigger → navigation
+    if (f.triggerId && f.navId && triggerNodes[f.triggerId] && navNodes[f.navId]) {
+      const trig = triggerNodes[f.triggerId];
+      const nav = navNodes[f.navId];
+      if (!trig.connectsTo.includes(nav.id)) {
+        trig.connectsTo.push(nav.id);
+        nav.connectedFrom.push(trig.id);
+      }
+    }
+
+    // Nav with no trigger → Screen directly connects
+    if (!f.triggerId && f.navId && navNodes[f.navId]) {
+      const nav = navNodes[f.navId];
+      if (!screenNode.connectsTo.includes(nav.id)) {
+        screenNode.connectsTo.push(nav.id);
+        nav.connectedFrom.push(screenNode.id);
+      }
+    }
   });
 
-  // 3) Data source nodes
-  dataSources.forEach(d => {
-    const node = {
-      id: d.id, label: '📡 ' + d.label, prettyName: d.label,
-      icon: '📡', desc: 'Loads data: ' + d.label,
-      type: 'data', color: DRILL_TYPES.data.color, typeLabel: 'Loads Data',
-      connectsTo: [], connectedFrom: []
-    };
-    drillNodes.push(node); dnMap[node.id] = node;
-  });
-
-  // 4) State nodes (loading, error, success)
-  states.forEach(s => {
-    const dt = DRILL_TYPES[s.type];
-    const node = {
-      id: s.id, label: dt.icon + ' ' + s.label, prettyName: s.label,
-      icon: dt.icon, desc: s.label + ' state',
-      type: s.type, color: dt.color, typeLabel: dt.label,
-      connectsTo: [], connectedFrom: []
-    };
-    drillNodes.push(node); dnMap[node.id] = node;
-  });
-
-  // 5) Navigation nodes
-  navigations.forEach(nav => {
-    const node = {
-      id: nav.id, label: '🧭 ' + nav.label, prettyName: nav.label,
-      icon: '🧭', desc: 'Navigates to: ' + nav.label,
-      type: 'navigate', color: DRILL_TYPES.navigate.color, typeLabel: 'Navigation',
-      connectsTo: [], connectedFrom: []
-    };
-    drillNodes.push(node); dnMap[node.id] = node;
-  });
-
-  // ── Smart connections ──
-  // Actions → data sources (actions trigger data loading)
-  if (userActions.length && dataSources.length) {
-    userActions.forEach(a => {
-      dataSources.forEach(d => {
-        dnMap[a.id].connectsTo.push(d.id);
-        dnMap[d.id].connectedFrom.push(a.id);
-      });
-    });
-  }
-  // Actions → states (actions trigger state changes)
-  if (userActions.length && states.length) {
-    userActions.forEach(a => {
-      states.forEach(s => {
-        dnMap[a.id].connectsTo.push(s.id);
-        dnMap[s.id].connectedFrom.push(a.id);
-      });
-    });
-  } else if (states.length) {
-    // Screen → states directly if no actions found
-    states.forEach(s => {
-      screenNode.connectsTo.push(s.id);
-      dnMap[s.id].connectedFrom.push(screenNode.id);
-    });
-  }
-  // Data sources → states
-  if (dataSources.length && states.length) {
-    dataSources.forEach(d => {
-      states.forEach(s => {
-        dnMap[d.id].connectsTo.push(s.id);
-        dnMap[s.id].connectedFrom.push(d.id);
-      });
-    });
-  }
-  // Actions/Screen → navigation (effects trigger navigation)
-  if (navigations.length) {
-    const sources = userActions.length ? userActions : [{ id: screenNode.id }];
-    sources.forEach(src => {
-      navigations.forEach(nav => {
-        dnMap[src.id].connectsTo.push(nav.id);
-        dnMap[nav.id].connectedFrom.push(src.id);
-      });
-    });
-  }
-
-  // If we found nothing from parsing, fall back to showing a simple "No detail available" screen
+  // If no flows found, show a note
   if (drillNodes.length <= 1) {
-    // Just the screen node — add a note
     const noteNode = {
-      id: 'note_empty', label: '💬 No event/effect patterns found',
-      prettyName: 'No detail found', icon: '💬',
-      desc: 'This feature may not use onEvent/HandleEffects patterns, or the graph data lacks source content.',
-      type: 'action', color: '#6b7280', typeLabel: 'Note',
+      id: 'note_empty', prettyName: 'No event/effect patterns found',
+      icon: '💬', desc: 'This feature may not use onEvent/HandleEffects patterns, or the graph data lacks source content.',
+      type: 'trigger', color: '#6b7280', typeLabel: 'Note',
       connectsTo: [], connectedFrom: [screenNode.id]
     };
     screenNode.connectsTo.push(noteNode.id);
@@ -593,7 +572,7 @@ function drillInto(featureId) {
 
   // Build dagre layout
   const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: 'TB', nodesep: 30, ranksep: 70, edgesep: 16, marginx: 60, marginy: 60 });
+  g.setGraph({ rankdir: 'TB', nodesep: 30, ranksep: 80, edgesep: 16, marginx: 60, marginy: 60 });
   g.setDefaultEdgeLabel(() => ({}));
 
   drillNodes.forEach(n => {
@@ -963,7 +942,7 @@ function updateBreadcrumb() {
   } else {
     const s = screenMap[currentView];
     bc.innerHTML = `<span class="bc-link" id="bc-back">All Features</span>
-      <span class="bc-sep">›</span><span class="bc-current">${s?.icon||'📱'} ${s?.prettyName || currentView} — Internal Flow</span>`;
+      <span class="bc-sep">›</span><span class="bc-current">${s?.icon||'📱'} ${s?.prettyName || currentView} — User Flow</span>`;
     document.getElementById('bc-back').addEventListener('click', showOverview);
   }
 }
