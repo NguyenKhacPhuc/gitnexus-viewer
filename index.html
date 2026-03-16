@@ -189,13 +189,43 @@ function getGroup(name) {
 
 // ── Drill-down node types (BA-friendly) ─────────────────────────────────
 const DRILL_TYPES = {
-  screen:   { icon: '📱', color: '#34d399', label: 'Screen' },
-  trigger:  { icon: '👆', color: '#fb923c', label: 'User Trigger' },
-  navigate: { icon: '🧭', color: '#38bdf8', label: 'Goes To' },
+  screen:      { icon: '📱', color: '#34d399', label: 'Screen' },
+  trigger:     { icon: '👆', color: '#fb923c', label: 'User Trigger' },
+  destination: { icon: '📱', color: '#38bdf8', label: 'Destination Screen' },
 };
 
 function pretty(name) { return name.split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); }
 function friendlyName(s) { return s.replace(/([a-z])([A-Z])/g, '$1 $2'); }
+
+// ── Resolve effect/nav name to a known screen ──────────────────────────
+function resolveDestinationScreen(rawName) {
+  // Try to extract screen name from patterns like: NavigateToHome, GoToProfile, HomeDirection, etc.
+  const cleaned = rawName
+    .replace(/^NavigateTo/i, '').replace(/^GoTo/i, '').replace(/^OpenTo?/i, '')
+    .replace(/^ShowTo?/i, '').replace(/^BackTo/i, '')
+    .replace(/Direction$/i, '').replace(/Route$/i, '').replace(/Screen$/i, '').replace(/Destination$/i, '');
+
+  if (!cleaned) return null;
+
+  // Convert PascalCase to kebab-case to match screen IDs: "SocialAuth" → "social-auth"
+  const kebab = cleaned.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+
+  // Try exact match first
+  if (screenMap[kebab]) return screenMap[kebab];
+
+  // Try lowercase match
+  const lower = cleaned.toLowerCase();
+  for (const s of screens) {
+    if (s.id === lower || s.id.replace(/-/g, '') === lower) return s;
+  }
+
+  // Try partial match
+  for (const s of screens) {
+    if (lower.includes(s.id.replace(/-/g, '')) || s.id.replace(/-/g, '').includes(lower)) return s;
+  }
+
+  return null;
+}
 
 // ── Parse onEvent → HandleEffects to build event-to-navigation map ──────
 function parseFeatureFlows(nodes) {
@@ -506,9 +536,9 @@ function drillInto(featureId) {
   };
   drillNodes.push(screenNode); dnMap[screenNode.id] = screenNode;
 
-  // Deduplicate trigger and nav nodes across flows
+  // Deduplicate trigger and destination nodes across flows
   const triggerNodes = {}; // id → node
-  const navNodes = {};     // id → node
+  const destNodes = {};    // id → node
 
   flows.forEach(f => {
     // Create trigger node if exists
@@ -526,34 +556,41 @@ function drillInto(featureId) {
       node.connectedFrom.push(screenNode.id);
     }
 
-    // Create nav node if exists
-    if (f.navId && !navNodes[f.navId]) {
+    // Create destination screen node if navigation exists
+    if (f.navId && !destNodes[f.navId]) {
+      // Try to resolve to a known screen
+      const resolved = resolveDestinationScreen(f.effect || f.navLabel || '');
+      const destIcon = resolved ? resolved.icon : '📱';
+      const destName = resolved ? resolved.prettyName : f.navLabel;
+      const destDesc = resolved ? resolved.desc : ('Navigates to: ' + f.navLabel);
+      const destColor = resolved ? resolved.color : DRILL_TYPES.destination.color;
       const node = {
-        id: f.navId, prettyName: f.navLabel,
-        icon: '🧭', desc: 'Navigates to: ' + f.navLabel,
-        type: 'navigate', color: DRILL_TYPES.navigate.color, typeLabel: 'Goes To',
+        id: f.navId, prettyName: destName,
+        icon: destIcon, desc: destDesc,
+        type: 'destination', color: destColor, typeLabel: 'Destination',
+        linkedScreen: resolved ? resolved.id : null, // for double-click navigation
         connectsTo: [], connectedFrom: []
       };
-      navNodes[f.navId] = node;
+      destNodes[f.navId] = node;
       drillNodes.push(node); dnMap[node.id] = node;
     }
 
-    // Link trigger → navigation
-    if (f.triggerId && f.navId && triggerNodes[f.triggerId] && navNodes[f.navId]) {
+    // Link trigger → destination
+    if (f.triggerId && f.navId && triggerNodes[f.triggerId] && destNodes[f.navId]) {
       const trig = triggerNodes[f.triggerId];
-      const nav = navNodes[f.navId];
-      if (!trig.connectsTo.includes(nav.id)) {
-        trig.connectsTo.push(nav.id);
-        nav.connectedFrom.push(trig.id);
+      const dest = destNodes[f.navId];
+      if (!trig.connectsTo.includes(dest.id)) {
+        trig.connectsTo.push(dest.id);
+        dest.connectedFrom.push(trig.id);
       }
     }
 
-    // Nav with no trigger → Screen directly connects
-    if (!f.triggerId && f.navId && navNodes[f.navId]) {
-      const nav = navNodes[f.navId];
-      if (!screenNode.connectsTo.includes(nav.id)) {
-        screenNode.connectsTo.push(nav.id);
-        nav.connectedFrom.push(screenNode.id);
+    // Destination with no trigger → Screen directly connects
+    if (!f.triggerId && f.navId && destNodes[f.navId]) {
+      const dest = destNodes[f.navId];
+      if (!screenNode.connectsTo.includes(dest.id)) {
+        screenNode.connectsTo.push(dest.id);
+        dest.connectedFrom.push(screenNode.id);
       }
     }
   });
@@ -747,17 +784,17 @@ function drawScreenNode(nd, s, dim, isSel, isHov) {
 
 function drawDrillNode(nd, n, dim, isSel, isHov) {
   const x = nd.x - nd.width/2, y = nd.y - nd.height/2, r = 12;
-  const isScreen = n.type === 'screen';
+  const isScreenType = n.type === 'screen' || n.type === 'destination';
 
   if (isSel || isHov) { ctx.shadowColor = n.color + '55'; ctx.shadowBlur = 18; }
   ctx.globalAlpha = dim ? 0.15 : 1;
 
-  // Background
+  // Background — screens and destinations get a richer bg
   ctx.beginPath(); roundRect(ctx, x, y, nd.width, nd.height, r);
-  ctx.fillStyle = isSel ? n.color + '20' : (isScreen ? '#1a2a30' : '#181830');
+  ctx.fillStyle = isSel ? n.color + '20' : (isScreenType ? '#1a2a30' : '#1c1828');
   ctx.fill();
-  ctx.strokeStyle = isSel ? n.color : isHov ? n.color + '88' : (isScreen ? '#2a4a45' : '#252540');
-  ctx.lineWidth = isScreen ? 2 : (isSel ? 2 : 1); ctx.stroke();
+  ctx.strokeStyle = isSel ? n.color : isHov ? n.color + '88' : (isScreenType ? n.color + '44' : '#2a2540');
+  ctx.lineWidth = isScreenType ? 2 : (isSel ? 2 : 1); ctx.stroke();
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
 
   // Top color strip
@@ -768,18 +805,29 @@ function drawDrillNode(nd, n, dim, isSel, isHov) {
   ctx.globalAlpha = dim ? 0.15 : 1;
 
   // Icon + text
-  ctx.font = (isScreen ? '20' : '16') + 'px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.font = (isScreenType ? '20' : '16') + 'px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillText(n.icon, x+12, y+nd.height/2);
   ctx.fillStyle = dim ? '#333' : '#eee';
-  ctx.font = '600 ' + (isScreen ? '13' : '12') + 'px Inter,Segoe UI,system-ui,sans-serif';
+  ctx.font = '600 ' + (isScreenType ? '13' : '12') + 'px Inter,Segoe UI,system-ui,sans-serif';
   const maxChars = Math.floor((nd.width - 55) / 7);
   const label = n.prettyName.length > maxChars ? n.prettyName.slice(0, maxChars) + '…' : n.prettyName;
   ctx.fillText(label, x+38, y+nd.height/2 - 7);
-  // Type label (BA-friendly)
+  // Type label
   ctx.fillStyle = dim ? '#222' : n.color;
   ctx.font = '600 9px Inter,Segoe UI,system-ui,sans-serif';
   ctx.globalAlpha = dim ? 0.1 : 0.6;
   ctx.fillText(n.typeLabel.toUpperCase(), x+38, y+nd.height/2 + 9);
+
+  // Double-click hint for destination screens
+  if (n.type === 'destination' && n.linkedScreen && !dim) {
+    ctx.fillStyle = n.color;
+    ctx.font = '600 8px Inter,Segoe UI,system-ui,sans-serif';
+    ctx.globalAlpha = 0.4;
+    ctx.textAlign = 'right';
+    ctx.fillText('double-click →', x+nd.width-10, y+nd.height/2 + 9);
+    ctx.textAlign = 'left';
+  }
+
   ctx.globalAlpha = 1;
 }
 
@@ -807,8 +855,15 @@ canvas.addEventListener('mouseup', () => dragging = false);
 canvas.addEventListener('mouseleave', () => { dragging = false; if (hoveredNode) { hoveredNode = null; render(); } });
 canvas.addEventListener('dblclick', e => {
   const hit = hitTest(e);
-  if (hit && currentView === 'overview' && screenMap[hit]) {
+  if (!hit) return;
+  // Overview: double-click screen → drill into it
+  if (currentView === 'overview' && screenMap[hit]) {
     drillInto(hit);
+    return;
+  }
+  // Drill-down: double-click destination screen → drill into that feature
+  if (currentView !== 'overview' && drillData?.nodeMap[hit]?.linkedScreen) {
+    drillInto(drillData.nodeMap[hit].linkedScreen);
   }
 });
 canvas.addEventListener('click', e => {
@@ -902,6 +957,11 @@ function showDrillDetail(id) {
       ${n.desc}
     </div>`;
 
+  // If this is a destination screen, show button to drill into it
+  if (n.type === 'destination' && n.linkedScreen) {
+    html += `<button class="det-drill" onclick="drillInto('${n.linkedScreen}')">View ${n.prettyName} Flow →</button>`;
+  }
+
   const leadsTo = (n.connectsTo || []).filter(t => drillData.keptIds.has(t));
   const comesFrom = (n.connectedFrom || []).filter(t => drillData.keptIds.has(t));
 
@@ -957,7 +1017,7 @@ function buildLegend(mode) {
   } else {
     el.innerHTML = Object.entries(DRILL_TYPES).map(([k,v]) =>
       `<div class="leg-item"><span class="leg-box" style="background:${v.color}"></span>${v.icon} ${v.label}</div>`
-    ).join('');
+    ).join('') + '<div class="leg-item" style="color:var(--text3);font-size:10px;margin-top:4px">Double-click destination to explore</div>';
   }
 }
 
