@@ -15,12 +15,11 @@
   html, body { height: 100%; overflow: hidden; font-family: 'Inter','Segoe UI',system-ui,sans-serif;
     font-size: 13px; background: var(--bg); color: var(--text); }
 
-  /* Load Screen */
   #load-screen { position: fixed; inset: 0; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 20px; z-index: 100; background: var(--bg); }
-  #load-screen h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+  #load-screen h1 { font-size: 26px; font-weight: 800; }
   #load-screen h1 span { background: linear-gradient(135deg, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-  #load-screen .sub { color: var(--text3); font-size: 13px; margin-top: -8px; }
+  .sub { color: var(--text3); font-size: 13px; margin-top: -8px; }
   .drop-zone { width: 400px; border: 2px dashed var(--border); border-radius: 16px;
     padding: 40px; text-align: center; cursor: pointer; transition: all .2s; }
   .drop-zone:hover { border-color: var(--accent); background: rgba(129,140,248,.05); }
@@ -29,39 +28,37 @@
   .url-row { display: flex; gap: 8px; width: 400px; }
   .url-row input { flex: 1; background: var(--bg3); border: 1px solid var(--border);
     color: var(--text); border-radius: 8px; padding: 9px 12px; font-size: 13px; outline: none; }
-  .url-row input:focus { border-color: var(--accent); }
   .btn { background: linear-gradient(135deg, #818cf8, #6366f1); color: #fff; border: none; border-radius: 8px;
     padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; }
-  .btn:hover { filter: brightness(1.1); }
   #load-error { color: #f87171; font-size: 12px; display: none; }
 
-  /* App */
   #app { display: none; height: 100vh; flex-direction: column; }
   #app.visible { display: flex; }
   #toolbar { height: 48px; background: var(--bg2); border-bottom: 1px solid var(--border);
     display: flex; align-items: center; gap: 12px; padding: 0 20px; }
-  #toolbar .title { font-weight: 800; font-size: 15px; }
-  #toolbar .title span { color: var(--accent); }
+  .title { font-weight: 800; font-size: 15px; }
+  .title span { color: var(--accent); }
   .tb-sep { width: 1px; height: 22px; background: var(--border); }
   .icon-btn { background: none; border: 1px solid transparent; border-radius: 8px; color: var(--text2);
     padding: 5px 12px; cursor: pointer; font-size: 12px; transition: all .15s; }
   .icon-btn:hover { background: var(--bg3); color: var(--text); }
-  .icon-btn.active { background: var(--bg3); border-color: var(--accent); color: var(--accent); }
+  #breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .bc-link { color: var(--accent); cursor: pointer; font-weight: 600; }
+  .bc-link:hover { text-decoration: underline; }
+  .bc-sep { color: var(--text3); }
+  .bc-current { color: var(--text); font-weight: 600; }
   #stats { color: var(--text3); font-size: 11px; margin-left: auto; }
 
   #main { flex: 1; display: flex; overflow: hidden; }
-
-  /* Canvas */
   #canvas-wrap { flex: 1; position: relative; overflow: hidden; }
   #flow-canvas { width: 100%; height: 100%; cursor: grab; }
   #flow-canvas:active { cursor: grabbing; }
   #controls { position: absolute; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 4px; }
   .ctrl-btn { width: 34px; height: 34px; background: var(--bg2); border: 1px solid var(--border);
     border-radius: 8px; color: var(--text); font-size: 18px; cursor: pointer;
-    display: flex; align-items: center; justify-content: center; transition: all .15s; }
+    display: flex; align-items: center; justify-content: center; }
   .ctrl-btn:hover { background: var(--bg3); border-color: var(--accent); }
 
-  /* Detail Panel */
   #detail { width: 320px; background: var(--bg2); border-left: 1px solid var(--border);
     display: none; flex-direction: column; overflow: hidden; }
   #detail.visible { display: flex; }
@@ -75,7 +72,6 @@
   .det-scroll::-webkit-scrollbar { width: 4px; }
   .det-scroll::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 2px; }
   .det-title { font-size: 18px; font-weight: 800; padding: 16px 16px 4px; display: flex; align-items: center; gap: 10px; }
-  .det-title .dt-icon { font-size: 22px; }
   .det-desc { padding: 4px 16px 12px; color: var(--text2); font-size: 12px; line-height: 1.5;
     border-bottom: 1px solid var(--border); }
   .det-section { padding: 12px 16px; }
@@ -86,10 +82,13 @@
   .det-link:hover { background: var(--bg3); color: var(--text); }
   .det-link .arrow { color: var(--accent); font-size: 11px; }
   .det-link .dot { width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
+  .det-drill { margin: 8px 16px; padding: 10px 14px; background: var(--accent); color: var(--bg);
+    border: none; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer;
+    text-align: center; transition: filter .15s; }
+  .det-drill:hover { filter: brightness(1.15); }
 
-  /* Legend */
   #legend { position: absolute; top: 16px; left: 16px; background: var(--bg2); border: 1px solid var(--border);
-    border-radius: 10px; padding: 12px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 11px; }
+    border-radius: 10px; padding: 12px 16px; display: flex; flex-direction: column; gap: 5px; font-size: 11px; }
   .leg-item { display: flex; align-items: center; gap: 8px; color: var(--text2); }
   .leg-box { width: 16px; height: 12px; border-radius: 3px; }
 </style>
@@ -117,6 +116,8 @@
   <div id="toolbar">
     <span class="title">App <span>Flow</span></span>
     <div class="tb-sep"></div>
+    <div id="breadcrumb"><span class="bc-current">All Features</span></div>
+    <div class="tb-sep"></div>
     <button class="icon-btn" id="btn-load">Load New</button>
     <div id="stats"></div>
   </div>
@@ -131,73 +132,102 @@
       </div>
     </div>
     <div id="detail">
-      <div class="det-header"><h3>Screen Detail</h3><button id="det-close">✕</button></div>
+      <div class="det-header"><h3>Detail</h3><button id="det-close">✕</button></div>
       <div class="det-scroll" id="det-content"></div>
     </div>
   </div>
 </div>
 
 <script>
-// ── Screen icons & descriptions based on common feature names ───────────
+// ── Screen metadata ─────────────────────────────────────────────────────
 const SCREEN_META = {
-  'welcome':          { icon: '👋', desc: 'Onboarding & first-time user experience' },
-  'auth':             { icon: '🔐', desc: 'Sign in, sign up, password recovery' },
-  'social-auth':      { icon: '🔗', desc: 'Social login (Google, Facebook, Apple, TikTok)' },
-  'home':             { icon: '🏠', desc: 'Main dashboard — hub for all features' },
-  'profile':          { icon: '👤', desc: 'User profile, settings, account management' },
-  'progress':         { icon: '📊', desc: 'Track learning progress & achievements' },
-  'survey':           { icon: '📝', desc: 'User surveys & feedback collection' },
-  'notification':     { icon: '🔔', desc: 'Push notifications & in-app alerts' },
-  'browser':          { icon: '🌐', desc: 'In-app browser for external content' },
-  'playground':       { icon: '🎮', desc: 'Interactive playground for exploration' },
-  'video-uploaded':   { icon: '📹', desc: 'Video upload & processing flow' },
-  'self-evaluation':  { icon: '🪞', desc: 'Self-assessment & skill evaluation' },
-  'trick-challenge':  { icon: '🎯', desc: 'Trick challenges & skill tests' },
-  'reward-medal':     { icon: '🏅', desc: 'Medal rewards & achievements display' },
-  'reward-motivation':{ icon: '💪', desc: 'Motivational rewards & encouragement' },
-  'self-record-upload':{ icon: '🎥', desc: 'Record & upload self-practice videos' },
-  'streaks':          { icon: '🔥', desc: 'Daily streak tracking & goals' },
-  'streaks-onboarding':{ icon: '✨', desc: 'Introduction to streak system' },
-  'stretching':       { icon: '🧘', desc: 'Stretching exercises & warm-up' },
-  'point-shop':       { icon: '🛒', desc: 'Spend points on rewards & items' },
-  'freestyle':        { icon: '🎪', desc: 'Free-form practice without structure' },
-  'practice':         { icon: '⚽', desc: 'Guided practice sessions & drills' },
-  'activity':         { icon: '📅', desc: 'Activity feed & history log' },
-  'social-challenge': { icon: '🤝', desc: 'Challenge friends & social competitions' },
-  'social-share':     { icon: '📤', desc: 'Share achievements to social media' },
-  'ai-challenge':     { icon: '🤖', desc: 'AI-powered challenges & exercises' },
-  'ai-evaluation':    { icon: '🧠', desc: 'AI analysis of your performance' },
+  'welcome':{ icon:'👋', desc:'Onboarding & first-time experience' },
+  'auth':{ icon:'🔐', desc:'Sign in, sign up, password recovery' },
+  'social-auth':{ icon:'🔗', desc:'Social login (Google, Facebook, Apple)' },
+  'home':{ icon:'🏠', desc:'Main dashboard — hub for all features' },
+  'profile':{ icon:'👤', desc:'User profile & settings' },
+  'progress':{ icon:'📊', desc:'Track learning progress' },
+  'survey':{ icon:'📝', desc:'User surveys & feedback' },
+  'notification':{ icon:'🔔', desc:'Notifications & alerts' },
+  'browser':{ icon:'🌐', desc:'In-app browser' },
+  'playground':{ icon:'🎮', desc:'Interactive playground' },
+  'video-uploaded':{ icon:'📹', desc:'Video upload flow' },
+  'self-evaluation':{ icon:'🪞', desc:'Self-assessment' },
+  'trick-challenge':{ icon:'🎯', desc:'Trick challenges' },
+  'reward-medal':{ icon:'🏅', desc:'Medal rewards' },
+  'reward-motivation':{ icon:'💪', desc:'Motivational rewards' },
+  'self-record-upload':{ icon:'🎥', desc:'Record & upload videos' },
+  'streaks':{ icon:'🔥', desc:'Daily streak tracking' },
+  'streaks-onboarding':{ icon:'✨', desc:'Streak introduction' },
+  'stretching':{ icon:'🧘', desc:'Stretching exercises' },
+  'point-shop':{ icon:'🛒', desc:'Rewards shop' },
+  'freestyle':{ icon:'🎪', desc:'Free-form practice' },
+  'practice':{ icon:'⚽', desc:'Guided practice sessions' },
+  'activity':{ icon:'📅', desc:'Activity feed' },
+  'social-challenge':{ icon:'🤝', desc:'Social competitions' },
+  'social-share':{ icon:'📤', desc:'Share to social media' },
+  'ai-challenge':{ icon:'🤖', desc:'AI-powered challenges' },
+  'ai-evaluation':{ icon:'🧠', desc:'AI performance analysis' },
 };
-
-// Fallback for unknown screens
 const DEFAULT_META = { icon: '📱', desc: 'App screen' };
 
-// ── Flow categories ─────────────────────────────────────────────────────
 const FLOW_GROUPS = {
-  onboarding: { label: 'Onboarding', color: '#818cf8', screens: ['welcome', 'auth', 'social-auth', 'streaks-onboarding'] },
-  main:       { label: 'Main',       color: '#34d399', screens: ['home', 'notification', 'profile', 'activity'] },
-  training:   { label: 'Training',   color: '#fbbf24', screens: ['practice', 'freestyle', 'stretching', 'playground'] },
-  progress:   { label: 'Progress',   color: '#f472b6', screens: ['progress', 'survey', 'self-evaluation'] },
-  challenge:  { label: 'Challenge',  color: '#fb923c', screens: ['trick-challenge', 'social-challenge', 'ai-challenge'] },
-  ai:         { label: 'AI',         color: '#a78bfa', screens: ['ai-evaluation', 'self-record-upload', 'video-uploaded'] },
-  rewards:    { label: 'Rewards',    color: '#facc15', screens: ['streaks', 'reward-medal', 'reward-motivation', 'point-shop'] },
-  social:     { label: 'Social',     color: '#38bdf8', screens: ['social-share', 'browser'] },
+  onboarding:{ label:'Onboarding', color:'#818cf8', screens:['welcome','auth','social-auth','streaks-onboarding'] },
+  main:{ label:'Main', color:'#34d399', screens:['home','notification','profile','activity'] },
+  training:{ label:'Training', color:'#fbbf24', screens:['practice','freestyle','stretching','playground'] },
+  progress:{ label:'Progress', color:'#f472b6', screens:['progress','survey','self-evaluation'] },
+  challenge:{ label:'Challenge', color:'#fb923c', screens:['trick-challenge','social-challenge','ai-challenge'] },
+  ai:{ label:'AI', color:'#a78bfa', screens:['ai-evaluation','self-record-upload','video-uploaded'] },
+  rewards:{ label:'Rewards', color:'#facc15', screens:['streaks','reward-medal','reward-motivation','point-shop'] },
+  social:{ label:'Social', color:'#38bdf8', screens:['social-share','browser'] },
 };
-
-function getScreenGroup(name) {
-  for (const [key, g] of Object.entries(FLOW_GROUPS)) {
-    if (g.screens.includes(name)) return { key, ...g };
-  }
-  return { key: 'other', label: 'Other', color: '#6b7280', screens: [] };
+function getGroup(name) {
+  for (const [k, g] of Object.entries(FLOW_GROUPS))
+    if (g.screens.includes(name)) return { key: k, ...g };
+  return { key: 'other', label: 'Other', color: '#6b7280' };
 }
 
+// ── Internal component classification ───────────────────────────────────
+const COMPONENT_TYPES = {
+  screen:    { icon: '📱', color: '#34d399', label: 'Screen',    keywords: ['screen','page','route','content','view','composable'] },
+  viewmodel: { icon: '🧩', color: '#818cf8', label: 'ViewModel', keywords: ['viewmodel','vm','presenter'] },
+  state:     { icon: '📦', color: '#fbbf24', label: 'State',     keywords: ['state','uistate'] },
+  event:     { icon: '⚡', color: '#fb923c', label: 'Event',     keywords: ['event','action','intent','effect','sideeffect'] },
+  error:     { icon: '❌', color: '#f87171', label: 'Error',     keywords: ['error','failure','exception'] },
+  loading:   { icon: '⏳', color: '#a78bfa', label: 'Loading',   keywords: ['loading','progress','pending'] },
+  success:   { icon: '✅', color: '#34d399', label: 'Success',   keywords: ['success','loaded','ready','result'] },
+  nav:       { icon: '🧭', color: '#38bdf8', label: 'Navigation',keywords: ['navigation','nav','route','destination','navigator','direction'] },
+  repo:      { icon: '💾', color: '#f472b6', label: 'Repository',keywords: ['repository','repo','datasource','usecase','interactor'] },
+  model:     { icon: '📐', color: '#d4d4d4', label: 'Model',     keywords: ['model','dto','entity','data class','response','request'] },
+  component: { icon: '🔲', color: '#6b7280', label: 'Component', keywords: ['component','widget','dialog','sheet','bottom','card','button','item','row','header'] },
+};
+
+function classifyComponent(name, kind) {
+  const n = name.toLowerCase();
+  // Priority order: error > loading > success > state > event > nav > viewmodel > screen > repo > model > component
+  const order = ['error','loading','success','state','event','nav','viewmodel','screen','repo','model','component'];
+  for (const type of order) {
+    const t = COMPONENT_TYPES[type];
+    if (t.keywords.some(kw => n.includes(kw))) return type;
+  }
+  // Fallback by kind
+  if (kind === 'Class' || kind === 'Interface') return 'model';
+  if (kind === 'Function') return 'component';
+  return 'component';
+}
+
+function pretty(name) { return name.split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); }
+
 // ── State ───────────────────────────────────────────────────────────────
-let screens = [];      // [{id, name, prettyName, icon, desc, group, color, goesTo[], comesFrom[]}]
+let rawData = null;
+let screens = [];
 let screenMap = {};
+let currentView = 'overview'; // 'overview' | featureId
+let drillData = null; // { nodes, layout } for drill-down
 let layout = null;
 let cam = { x: 0, y: 0, zoom: 1 };
-let selectedScreen = null;
-let hoveredScreen = null;
+let selectedNode = null;
+let hoveredNode = null;
 const canvas = document.getElementById('flow-canvas');
 const ctx = canvas.getContext('2d');
 
@@ -226,33 +256,28 @@ async function fetchUrl(url) {
 }
 function showErr(m) { const el = document.getElementById('load-error'); el.textContent = m; el.style.display = 'block'; }
 
-// ── Extract screens from feature modules ────────────────────────────────
+// ── Process Data ────────────────────────────────────────────────────────
 function processData(data) {
   if (!data.nodes?.length) return showErr('No nodes');
+  rawData = data;
   document.getElementById('load-screen').style.display = 'none';
   document.getElementById('app').classList.add('visible');
 
-  // Map each node to its feature module
   const nodeToFeature = {};
   data.nodes.forEach(n => {
     const fp = n.properties?.filePath || '';
     const parts = fp.split('/');
-    if (parts[0] === 'feature' && parts.length >= 2) {
-      nodeToFeature[n.id] = parts[1];
-    }
+    if (parts[0] === 'feature' && parts.length >= 2) nodeToFeature[n.id] = parts[1];
   });
 
-  // Collect unique feature screens
   const featureSet = new Set(Object.values(nodeToFeature));
-  screenMap = {};
-  screens = [];
+  screenMap = {}; screens = [];
 
   featureSet.forEach(name => {
     const meta = SCREEN_META[name] || DEFAULT_META;
-    const group = getScreenGroup(name);
-    const prettyName = name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    const group = getGroup(name);
     const screen = {
-      id: name, name, prettyName, icon: meta.icon, desc: meta.desc,
+      id: name, name, prettyName: pretty(name), icon: meta.icon, desc: meta.desc,
       group: group.key, groupLabel: group.label, color: group.color,
       goesTo: [], comesFrom: [], goesToCounts: {}
     };
@@ -260,70 +285,155 @@ function processData(data) {
     screenMap[name] = screen;
   });
 
-  // Detect navigation/flow: cross-feature dependencies = "goes to"
+  // Cross-feature flows
   const flowCounts = {};
   data.relationships.forEach(r => {
-    if (r.type === 'MEMBER_OF' || r.type === 'CONTAINS' || r.type === 'HAS_STEP') return;
-    const sf = nodeToFeature[r.sourceId];
-    const tf = nodeToFeature[r.targetId];
-    if (!sf || !tf || sf === tf) return;
-    if (!screenMap[sf] || !screenMap[tf]) return;
-    const key = sf + '->' + tf;
-    flowCounts[key] = (flowCounts[key] || 0) + 1;
+    if (['MEMBER_OF','CONTAINS','HAS_STEP'].includes(r.type)) return;
+    const sf = nodeToFeature[r.sourceId], tf = nodeToFeature[r.targetId];
+    if (!sf || !tf || sf === tf || !screenMap[sf] || !screenMap[tf]) return;
+    flowCounts[sf+'->'+tf] = (flowCounts[sf+'->'+tf] || 0) + 1;
   });
 
-  // Only keep significant flows (3+ refs to filter noise)
   Object.entries(flowCounts).forEach(([key, count]) => {
     if (count < 3) return;
     const [from, to] = key.split('->');
-    if (!screenMap[from] || !screenMap[to]) return;
     if (!screenMap[from].goesTo.includes(to)) {
       screenMap[from].goesTo.push(to);
       screenMap[from].goesToCounts[to] = count;
     }
-    if (!screenMap[to].comesFrom.includes(from)) {
-      screenMap[to].comesFrom.push(from);
-    }
+    if (!screenMap[to].comesFrom.includes(from)) screenMap[to].comesFrom.push(from);
   });
 
-  // Sort screens: onboarding first, then main, then by group
   const groupOrder = ['onboarding','main','training','progress','challenge','ai','rewards','social','other'];
-  screens.sort((a, b) => {
-    const ai = groupOrder.indexOf(a.group);
-    const bi = groupOrder.indexOf(b.group);
-    return ai - bi;
-  });
+  screens.sort((a, b) => groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group));
 
-  computeLayout();
-  buildLegend();
+  showOverview();
+}
+
+// ── Overview ────────────────────────────────────────────────────────────
+function showOverview() {
+  currentView = 'overview';
+  drillData = null;
+  selectedNode = null;
+  hoveredNode = null;
+  document.getElementById('detail').classList.remove('visible');
+  updateBreadcrumb();
+  computeOverviewLayout();
+  buildLegend('overview');
+  cam = { x: 0, y: 0, zoom: 1 };
   fitView();
   updateStats();
   render();
 }
 
-// ── Dagre Layout ────────────────────────────────────────────────────────
-function computeLayout() {
+function computeOverviewLayout() {
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: 'LR', nodesep: 24, ranksep: 100, edgesep: 16, marginx: 60, marginy: 60 });
   g.setDefaultEdgeLabel(() => ({}));
-
   screens.forEach(s => {
-    const w = Math.max(140, s.prettyName.length * 8 + 60);
-    g.setNode(s.id, { width: w, height: 64 });
+    g.setNode(s.id, { width: Math.max(140, s.prettyName.length * 8 + 60), height: 64, type: 'screen' });
+  });
+  const added = new Set();
+  screens.forEach(s => s.goesTo.forEach(t => {
+    const k = s.id + '|' + t;
+    if (!added.has(k) && g.hasNode(t)) { added.add(k); g.setEdge(s.id, t); }
+  }));
+  dagre.layout(g);
+  layout = g;
+}
+
+// ── Drill Down Into Feature ─────────────────────────────────────────────
+function drillInto(featureId) {
+  currentView = featureId;
+  selectedNode = null;
+  hoveredNode = null;
+  document.getElementById('detail').classList.remove('visible');
+  updateBreadcrumb();
+
+  // Collect nodes belonging to this feature (skip File/Folder/Community/Process)
+  const skipTypes = new Set(['File','Folder','Community','Process']);
+  const featureNodes = [];
+  const featureNodeIds = new Set();
+  const nodeById = {};
+  rawData.nodes.forEach(n => { nodeById[n.id] = n; });
+
+  rawData.nodes.forEach(n => {
+    const fp = n.properties?.filePath || '';
+    const parts = fp.split('/');
+    if (parts[0] !== 'feature' || parts[1] !== featureId) return;
+    if (skipTypes.has(n.label)) return;
+    featureNodeIds.add(n.id);
+    const name = n.properties?.name || n.id;
+    const ctype = classifyComponent(name, n.label);
+    const ct = COMPONENT_TYPES[ctype];
+    featureNodes.push({
+      id: n.id, name, prettyName: pretty(name),
+      kind: n.label, componentType: ctype,
+      icon: ct.icon, color: ct.color, typeLabel: ct.label,
+      filePath: n.properties?.filePath || '',
+      callsTo: [], calledBy: []
+    });
   });
 
-  const added = new Set();
-  screens.forEach(s => {
-    s.goesTo.forEach(t => {
-      const k = s.id + '|' + t;
-      if (added.has(k) || !g.hasNode(t)) return;
-      added.add(k);
-      g.setEdge(s.id, t);
+  const fnMap = {};
+  featureNodes.forEach(n => { fnMap[n.id] = n; });
+
+  // Internal edges (CALLS primarily, also IMPORTS/EXTENDS)
+  const flowTypes = new Set(['CALLS','IMPORTS','EXTENDS','IMPLEMENTS']);
+  rawData.relationships.forEach(r => {
+    if (!flowTypes.has(r.type)) return;
+    const sIn = featureNodeIds.has(r.sourceId);
+    const tIn = featureNodeIds.has(r.targetId);
+    if (sIn && tIn && fnMap[r.sourceId] && fnMap[r.targetId]) {
+      if (!fnMap[r.sourceId].callsTo.includes(r.targetId))
+        fnMap[r.sourceId].callsTo.push(r.targetId);
+      if (!fnMap[r.targetId].calledBy.includes(r.sourceId))
+        fnMap[r.targetId].calledBy.push(r.sourceId);
+    }
+  });
+
+  // Deduplicate: group similar components, keep ones with connections or important types
+  const importantTypes = new Set(['screen','viewmodel','state','event','error','loading','success','nav','repo']);
+  const filtered = featureNodes.filter(n =>
+    importantTypes.has(n.componentType) || n.callsTo.length > 0 || n.calledBy.length > 0
+  );
+
+  // If too many, keep top by connections
+  const sorted = filtered.sort((a, b) => (b.callsTo.length + b.calledBy.length) - (a.callsTo.length + a.calledBy.length));
+  const maxNodes = 40;
+  const kept = sorted.slice(0, maxNodes);
+  const keptIds = new Set(kept.map(n => n.id));
+
+  // Build dagre layout
+  const g = new dagre.graphlib.Graph();
+  g.setGraph({ rankdir: 'TB', nodesep: 20, ranksep: 60, edgesep: 12, marginx: 40, marginy: 40 });
+  g.setDefaultEdgeLabel(() => ({}));
+
+  kept.forEach(n => {
+    const w = Math.max(130, n.prettyName.length * 7 + 50);
+    g.setNode(n.id, { width: w, height: 50, type: 'internal' });
+  });
+
+  const edgeAdded = new Set();
+  kept.forEach(n => {
+    n.callsTo.forEach(t => {
+      if (!keptIds.has(t)) return;
+      const k = n.id + '|' + t;
+      if (edgeAdded.has(k)) return;
+      edgeAdded.add(k);
+      g.setEdge(n.id, t);
     });
   });
 
   dagre.layout(g);
   layout = g;
+  drillData = { nodes: kept, nodeMap: fnMap, keptIds };
+
+  buildLegend('drill');
+  cam = { x: 0, y: 0, zoom: 1 };
+  fitView();
+  updateStats();
+  render();
 }
 
 // ── Render ──────────────────────────────────────────────────────────────
@@ -345,270 +455,344 @@ function render() {
   const gh = layout.graph().height || 600;
 
   ctx.clearRect(0, 0, W, H);
-
-  // Background gradient
   const grad = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W,H));
-  grad.addColorStop(0, '#12122a');
-  grad.addColorStop(1, '#0a0a18');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
+  grad.addColorStop(0, '#12122a'); grad.addColorStop(1, '#0a0a18');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
 
   ctx.save();
   ctx.translate(W/2 + cam.x, H/2 + cam.y);
   ctx.scale(cam.zoom, cam.zoom);
   ctx.translate(-gw/2, -gh/2);
 
-  // Highlight logic
-  const sel = selectedScreen ? screenMap[selectedScreen] : null;
-  const hov = hoveredScreen ? screenMap[hoveredScreen] : null;
-  const hlSet = new Set();
-  if (sel) { hlSet.add(sel.id); sel.goesTo.forEach(d => hlSet.add(d)); sel.comesFrom.forEach(d => hlSet.add(d)); }
-  if (hov && !sel) { hlSet.add(hov.id); hov.goesTo.forEach(d => hlSet.add(d)); hov.comesFrom.forEach(d => hlSet.add(d)); }
-
-  // ── Draw edges ──
-  layout.edges().forEach(e => {
-    const edge = layout.edge(e);
-    if (!edge?.points?.length) return;
-    const from = e.v, to = e.w;
-    const fromScreen = screenMap[from];
-    const toScreen = screenMap[to];
-
-    const highlighted = hlSet.size === 0 || (hlSet.has(from) && hlSet.has(to));
-    const dimmed = hlSet.size > 0 && !highlighted;
-    const isSelected = sel && (sel.goesTo.includes(to) && from === sel.id || sel.comesFrom.includes(from) && to === sel.id);
-
-    // Draw curved path
-    ctx.beginPath();
-    if (edge.points.length >= 3) {
-      ctx.moveTo(edge.points[0].x, edge.points[0].y);
-      for (let i = 1; i < edge.points.length - 1; i += 2) {
-        const cp = edge.points[i];
-        const ep = edge.points[Math.min(i+1, edge.points.length-1)];
-        ctx.quadraticCurveTo(cp.x, cp.y, ep.x, ep.y);
-      }
-    } else {
-      ctx.moveTo(edge.points[0].x, edge.points[0].y);
-      edge.points.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
-    }
-
-    const edgeColor = isSelected ? (fromScreen?.color || '#818cf8') : '#2a2a50';
-    ctx.strokeStyle = dimmed ? '#111125' : edgeColor;
-    ctx.lineWidth = dimmed ? 0.5 : isSelected ? 2.5 : 1.2;
-    ctx.globalAlpha = dimmed ? 0.3 : 1;
-    ctx.stroke();
-
-    // Arrowhead
-    const pts = edge.points;
-    const last = pts[pts.length - 1];
-    const prev = pts[pts.length - 2];
-    const angle = Math.atan2(last.y - prev.y, last.x - prev.x);
-    const sz = dimmed ? 5 : isSelected ? 9 : 7;
-    ctx.save();
-    ctx.translate(last.x, last.y);
-    ctx.rotate(angle);
-    ctx.beginPath();
-    ctx.moveTo(2, 0); ctx.lineTo(-sz, -sz/2.2); ctx.lineTo(-sz, sz/2.2); ctx.closePath();
-    ctx.fillStyle = dimmed ? '#111125' : edgeColor;
-    ctx.fill();
-    ctx.restore();
-    ctx.globalAlpha = 1;
-  });
-
-  // ── Draw nodes (screens) ──
-  layout.nodes().forEach(nid => {
-    const nd = layout.node(nid);
-    if (!nd) return;
-    const s = screenMap[nid];
-    if (!s) return;
-
-    const dimmed = hlSet.size > 0 && !hlSet.has(nid);
-    const isSelected = selectedScreen === nid;
-    const isHovered = hoveredScreen === nid;
-    const x = nd.x - nd.width/2;
-    const y = nd.y - nd.height/2;
-    const r = 12;
-
-    // Glow for selected
-    if (isSelected || isHovered) {
-      ctx.shadowColor = s.color + '55';
-      ctx.shadowBlur = 20;
-    }
-
-    // Card background
-    ctx.globalAlpha = dimmed ? 0.15 : 1;
-    ctx.beginPath();
-    roundRect(ctx, x, y, nd.width, nd.height, r);
-    const cardGrad = ctx.createLinearGradient(x, y, x, y + nd.height);
-    cardGrad.addColorStop(0, isSelected ? s.color + '20' : '#1a1a30');
-    cardGrad.addColorStop(1, isSelected ? s.color + '10' : '#14142a');
-    ctx.fillStyle = cardGrad;
-    ctx.fill();
-    ctx.strokeStyle = isSelected ? s.color : isHovered ? s.color + '88' : '#2a2a45';
-    ctx.lineWidth = isSelected ? 2 : 1;
-    ctx.stroke();
-    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
-
-    // Color accent strip on top
-    ctx.beginPath();
-    ctx.moveTo(x + r, y); ctx.lineTo(x + nd.width - r, y);
-    ctx.quadraticCurveTo(x + nd.width, y, x + nd.width, y + r);
-    ctx.lineTo(x + nd.width, y + 3); ctx.lineTo(x, y + 3); ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
-    ctx.fillStyle = s.color;
-    ctx.globalAlpha = dimmed ? 0.05 : 0.6;
-    ctx.fill();
-    ctx.globalAlpha = dimmed ? 0.15 : 1;
-
-    // Icon
-    ctx.font = '18px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(s.icon, x + 12, y + nd.height/2);
-
-    // Name
-    ctx.fillStyle = dimmed ? '#333' : '#eee';
-    ctx.font = '600 12px Inter, Segoe UI, system-ui, sans-serif';
-    ctx.fillText(s.prettyName, x + 36, y + nd.height/2 - 7);
-
-    // Group label
-    ctx.fillStyle = dimmed ? '#222' : s.color;
-    ctx.font = '600 9px Inter, Segoe UI, system-ui, sans-serif';
-    ctx.globalAlpha = dimmed ? 0.1 : 0.7;
-    ctx.fillText(s.groupLabel.toUpperCase(), x + 36, y + nd.height/2 + 10);
-    ctx.globalAlpha = 1;
-  });
+  if (currentView === 'overview') renderOverview();
+  else renderDrill();
 
   ctx.restore();
 }
 
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
+function renderOverview() {
+  const sel = selectedNode ? screenMap[selectedNode] : null;
+  const hov = hoveredNode ? screenMap[hoveredNode] : null;
+  const hlSet = new Set();
+  if (sel) { hlSet.add(sel.id); sel.goesTo.forEach(d => hlSet.add(d)); sel.comesFrom.forEach(d => hlSet.add(d)); }
+  if (hov && !sel) { hlSet.add(hov.id); hov.goesTo.forEach(d => hlSet.add(d)); hov.comesFrom.forEach(d => hlSet.add(d)); }
+
+  // Edges
+  layout.edges().forEach(e => {
+    const edge = layout.edge(e);
+    if (!edge?.points?.length) return;
+    const hl = hlSet.size === 0 || (hlSet.has(e.v) && hlSet.has(e.w));
+    const dim = hlSet.size > 0 && !hl;
+    drawEdge(edge.points, dim ? '#111125' : (sel && hl ? (screenMap[e.v]?.color || '#818cf8') : '#2a2a50'),
+      dim ? 0.5 : (sel && hl ? 2.5 : 1.2), dim ? 0.3 : 1);
+  });
+
+  // Nodes
+  layout.nodes().forEach(nid => {
+    const nd = layout.node(nid); const s = screenMap[nid];
+    if (!nd || !s) return;
+    const dim = hlSet.size > 0 && !hlSet.has(nid);
+    const isSel = selectedNode === nid;
+    const isHov = hoveredNode === nid;
+    drawScreenNode(nd, s, dim, isSel, isHov);
+  });
 }
 
-// ── Pan & Zoom ──────────────────────────────────────────────────────────
-let dragging = false, dragStart = { x: 0, y: 0 };
-canvas.addEventListener('mousedown', e => { dragging = true; dragStart = { x: e.clientX - cam.x, y: e.clientY - cam.y }; });
+function renderDrill() {
+  if (!drillData) return;
+  const sel = selectedNode ? drillData.nodeMap[selectedNode] : null;
+  const hov = hoveredNode ? drillData.nodeMap[hoveredNode] : null;
+  const hlSet = new Set();
+  if (sel) { hlSet.add(sel.id); sel.callsTo.forEach(d => hlSet.add(d)); sel.calledBy.forEach(d => hlSet.add(d)); }
+  if (hov && !sel) { hlSet.add(hov.id); hov.callsTo.forEach(d => hlSet.add(d)); hov.calledBy.forEach(d => hlSet.add(d)); }
+
+  // Edges
+  layout.edges().forEach(e => {
+    const edge = layout.edge(e);
+    if (!edge?.points?.length) return;
+    const hl = hlSet.size === 0 || (hlSet.has(e.v) && hlSet.has(e.w));
+    const dim = hlSet.size > 0 && !hl;
+    const srcNode = drillData.nodeMap[e.v];
+    drawEdge(edge.points, dim ? '#111125' : (sel && hl ? (srcNode?.color || '#818cf8') : '#2a2a50'),
+      dim ? 0.5 : (sel && hl ? 2.5 : 1.2), dim ? 0.3 : 1);
+  });
+
+  // Nodes
+  layout.nodes().forEach(nid => {
+    const nd = layout.node(nid);
+    const n = drillData.nodeMap[nid];
+    if (!nd || !n) return;
+    const dim = hlSet.size > 0 && !hlSet.has(nid);
+    const isSel = selectedNode === nid;
+    const isHov = hoveredNode === nid;
+    drawInternalNode(nd, n, dim, isSel, isHov);
+  });
+}
+
+function drawEdge(points, color, width, alpha) {
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  if (points.length >= 3) {
+    for (let i = 1; i < points.length - 1; i += 2) {
+      const cp = points[i];
+      const ep = points[Math.min(i+1, points.length-1)];
+      ctx.quadraticCurveTo(cp.x, cp.y, ep.x, ep.y);
+    }
+  } else { points.slice(1).forEach(p => ctx.lineTo(p.x, p.y)); }
+  ctx.strokeStyle = color; ctx.lineWidth = width; ctx.globalAlpha = alpha; ctx.stroke();
+  // Arrow
+  const last = points[points.length-1], prev = points[points.length-2];
+  const angle = Math.atan2(last.y-prev.y, last.x-prev.x);
+  const sz = width > 2 ? 9 : 7;
+  ctx.save(); ctx.translate(last.x, last.y); ctx.rotate(angle);
+  ctx.beginPath(); ctx.moveTo(2,0); ctx.lineTo(-sz,-sz/2.2); ctx.lineTo(-sz,sz/2.2); ctx.closePath();
+  ctx.fillStyle = color; ctx.fill(); ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+function drawScreenNode(nd, s, dim, isSel, isHov) {
+  const x = nd.x - nd.width/2, y = nd.y - nd.height/2, r = 12;
+  if (isSel || isHov) { ctx.shadowColor = s.color + '55'; ctx.shadowBlur = 20; }
+  ctx.globalAlpha = dim ? 0.15 : 1;
+  ctx.beginPath(); roundRect(ctx, x, y, nd.width, nd.height, r);
+  ctx.fillStyle = isSel ? s.color + '20' : '#1a1a30';
+  ctx.fill();
+  ctx.strokeStyle = isSel ? s.color : isHov ? s.color + '88' : '#2a2a45';
+  ctx.lineWidth = isSel ? 2 : 1; ctx.stroke();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+  // Top color strip
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+nd.width-r,y); ctx.quadraticCurveTo(x+nd.width,y,x+nd.width,y+r);
+  ctx.lineTo(x+nd.width,y+3); ctx.lineTo(x,y+3); ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath(); ctx.fillStyle = s.color; ctx.globalAlpha = dim ? 0.05 : 0.6; ctx.fill();
+  ctx.globalAlpha = dim ? 0.15 : 1;
+  // Icon + text
+  ctx.font = '18px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(s.icon, x+12, y+nd.height/2);
+  ctx.fillStyle = dim ? '#333' : '#eee';
+  ctx.font = '600 12px Inter,Segoe UI,system-ui,sans-serif';
+  ctx.fillText(s.prettyName, x+36, y+nd.height/2-7);
+  ctx.fillStyle = dim ? '#222' : s.color;
+  ctx.font = '600 9px Inter,Segoe UI,system-ui,sans-serif';
+  ctx.globalAlpha = dim ? 0.1 : 0.7;
+  ctx.fillText(s.groupLabel.toUpperCase(), x+36, y+nd.height/2+10);
+  ctx.globalAlpha = 1;
+}
+
+function drawInternalNode(nd, n, dim, isSel, isHov) {
+  const x = nd.x - nd.width/2, y = nd.y - nd.height/2, r = 10;
+  if (isSel || isHov) { ctx.shadowColor = n.color + '55'; ctx.shadowBlur = 16; }
+  ctx.globalAlpha = dim ? 0.15 : 1;
+  ctx.beginPath(); roundRect(ctx, x, y, nd.width, nd.height, r);
+  ctx.fillStyle = isSel ? n.color + '18' : '#181830';
+  ctx.fill();
+  ctx.strokeStyle = isSel ? n.color : isHov ? n.color + '88' : '#252540';
+  ctx.lineWidth = isSel ? 2 : 1; ctx.stroke();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+  // Left color bar
+  ctx.fillStyle = n.color; ctx.globalAlpha = dim ? 0.05 : 0.7;
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+4,y); ctx.lineTo(x+4,y+nd.height);
+  ctx.lineTo(x+r,y+nd.height); ctx.quadraticCurveTo(x,y+nd.height,x,y+nd.height-r);
+  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.fill();
+  ctx.globalAlpha = dim ? 0.15 : 1;
+  // Icon + text
+  ctx.font = '14px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(n.icon, x+10, y+nd.height/2);
+  ctx.fillStyle = dim ? '#333' : '#eee';
+  ctx.font = '600 11px Inter,Segoe UI,system-ui,sans-serif';
+  const maxChars = Math.floor((nd.width - 50) / 6.5);
+  const label = n.prettyName.length > maxChars ? n.prettyName.slice(0, maxChars) + '…' : n.prettyName;
+  ctx.fillText(label, x+30, y+nd.height/2-6);
+  ctx.fillStyle = dim ? '#222' : n.color;
+  ctx.font = '600 8px Inter,Segoe UI,system-ui,sans-serif';
+  ctx.globalAlpha = dim ? 0.1 : 0.6;
+  ctx.fillText(n.typeLabel.toUpperCase(), x+30, y+nd.height/2+9);
+  ctx.globalAlpha = 1;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+}
+
+// ── Pan / Zoom / Hit Test ───────────────────────────────────────────────
+let dragging = false, dragStart = { x:0, y:0 }, didDrag = false;
+canvas.addEventListener('mousedown', e => { dragging = true; didDrag = false;
+  dragStart = { x: e.clientX - cam.x, y: e.clientY - cam.y }; });
 canvas.addEventListener('mousemove', e => {
-  if (dragging) { cam.x = e.clientX - dragStart.x; cam.y = e.clientY - dragStart.y; render(); return; }
+  if (dragging) {
+    const dx = e.clientX - dragStart.x - cam.x, dy = e.clientY - dragStart.y - cam.y;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didDrag = true;
+    cam.x = e.clientX - dragStart.x; cam.y = e.clientY - dragStart.y; render(); return;
+  }
   const hit = hitTest(e);
-  if (hit !== hoveredScreen) { hoveredScreen = hit; canvas.style.cursor = hit ? 'pointer' : 'grab'; render(); }
+  if (hit !== hoveredNode) { hoveredNode = hit; canvas.style.cursor = hit ? 'pointer' : 'grab'; render(); }
 });
 canvas.addEventListener('mouseup', () => dragging = false);
-canvas.addEventListener('mouseleave', () => { dragging = false; if (hoveredScreen) { hoveredScreen = null; render(); } });
-canvas.addEventListener('click', e => {
-  if (dragging) return;
+canvas.addEventListener('mouseleave', () => { dragging = false; if (hoveredNode) { hoveredNode = null; render(); } });
+canvas.addEventListener('dblclick', e => {
   const hit = hitTest(e);
-  if (hit) { selectedScreen = selectedScreen === hit ? null : hit; }
-  else { selectedScreen = null; }
-  if (selectedScreen) showDetail(selectedScreen);
-  else document.getElementById('detail').classList.remove('visible');
+  if (hit && currentView === 'overview' && screenMap[hit]) {
+    drillInto(hit);
+  }
+});
+canvas.addEventListener('click', e => {
+  if (didDrag) return;
+  const hit = hitTest(e);
+  selectedNode = selectedNode === hit ? null : hit;
+  if (selectedNode) {
+    if (currentView === 'overview') showOverviewDetail(selectedNode);
+    else showDrillDetail(selectedNode);
+  } else document.getElementById('detail').classList.remove('visible');
   render();
 });
 canvas.addEventListener('wheel', e => { e.preventDefault();
   cam.zoom = Math.max(0.2, Math.min(4, cam.zoom * (e.deltaY < 0 ? 1.12 : 0.89)));
-  render();
-}, { passive: false });
+  render(); }, { passive: false });
 
 function hitTest(e) {
   if (!layout) return null;
   const rect = canvas.getBoundingClientRect();
-  const gw = layout.graph().width || 0;
-  const gh = layout.graph().height || 0;
+  const gw = layout.graph().width || 0, gh = layout.graph().height || 0;
   const mx = (e.clientX - rect.left - rect.width/2 - cam.x) / cam.zoom + gw/2;
   const my = (e.clientY - rect.top - rect.height/2 - cam.y) / cam.zoom + gh/2;
   let found = null;
   layout.nodes().forEach(nid => {
     const nd = layout.node(nid);
-    if (mx >= nd.x - nd.width/2 && mx <= nd.x + nd.width/2 &&
-        my >= nd.y - nd.height/2 && my <= nd.y + nd.height/2) found = nid;
+    if (mx >= nd.x-nd.width/2 && mx <= nd.x+nd.width/2 && my >= nd.y-nd.height/2 && my <= nd.y+nd.height/2) found = nid;
   });
   return found;
 }
 
-document.getElementById('btn-zin').addEventListener('click', () => { cam.zoom = Math.min(4, cam.zoom * 1.3); render(); });
-document.getElementById('btn-zout').addEventListener('click', () => { cam.zoom = Math.max(0.2, cam.zoom / 1.3); render(); });
+document.getElementById('btn-zin').addEventListener('click', () => { cam.zoom = Math.min(4, cam.zoom*1.3); render(); });
+document.getElementById('btn-zout').addEventListener('click', () => { cam.zoom = Math.max(0.2, cam.zoom/1.3); render(); });
 document.getElementById('btn-fit').addEventListener('click', fitView);
 
 function fitView() {
-  cam = { x: 0, y: 0, zoom: 1 };
+  cam = { x:0, y:0, zoom:1 };
   if (layout) {
     const wrap = document.getElementById('canvas-wrap');
-    const gw = layout.graph().width || 800;
-    const gh = layout.graph().height || 600;
-    cam.zoom = Math.min((wrap.clientWidth - 100) / gw, (wrap.clientHeight - 100) / gh, 1.8);
+    cam.zoom = Math.min((wrap.clientWidth-100)/(layout.graph().width||800),
+      (wrap.clientHeight-100)/(layout.graph().height||600), 1.8);
   }
   render();
 }
 
-// ── Detail Panel ────────────────────────────────────────────────────────
-function showDetail(id) {
+// ── Detail: Overview ────────────────────────────────────────────────────
+function showOverviewDetail(id) {
   const s = screenMap[id];
   if (!s) return;
   const panel = document.getElementById('detail');
   const content = document.getElementById('det-content');
 
-  let html = `<div class="det-title"><span class="dt-icon">${s.icon}</span>${s.prettyName}</div>
-    <div class="det-desc">${s.desc}<br>
-    <span style="color:var(--text3)">Group: ${s.groupLabel}</span></div>`;
+  let html = `<div class="det-title"><span style="font-size:24px">${s.icon}</span>${s.prettyName}</div>
+    <div class="det-desc">${s.desc}<br><span style="color:var(--text3)">Group: ${s.groupLabel}</span></div>
+    <button class="det-drill" onclick="drillInto('${s.id}')">View Internal Flow →</button>`;
 
   if (s.goesTo.length) {
-    html += `<div class="det-section"><div class="det-section-title">Goes To (${s.goesTo.length})</div>`;
-    s.goesTo.forEach(t => {
-      const ts = screenMap[t];
-      if (!ts) return;
-      const count = s.goesToCounts[t] || '';
-      html += `<div class="det-link" data-id="${t}">
-        <span class="arrow">→</span><span class="dot" style="background:${ts.color}"></span>
-        ${ts.icon} ${ts.prettyName}
-        <span style="color:var(--text3);font-size:10px;margin-left:auto">${count} refs</span></div>`;
-    });
+    html += `<div class="det-section"><div class="det-section-title">User Goes To (${s.goesTo.length})</div>`;
+    s.goesTo.forEach(t => { const ts = screenMap[t]; if (!ts) return;
+      html += `<div class="det-link" data-id="${t}"><span class="arrow">→</span>
+        <span class="dot" style="background:${ts.color}"></span>${ts.icon} ${ts.prettyName}
+        <span style="color:var(--text3);font-size:10px;margin-left:auto">${s.goesToCounts[t]||''}</span></div>`; });
     html += '</div>';
   }
-
   if (s.comesFrom.length) {
-    html += `<div class="det-section"><div class="det-section-title">Comes From (${s.comesFrom.length})</div>`;
-    s.comesFrom.forEach(f => {
-      const fs = screenMap[f];
-      if (!fs) return;
-      html += `<div class="det-link" data-id="${f}">
-        <span class="arrow">←</span><span class="dot" style="background:${fs.color}"></span>
-        ${fs.icon} ${fs.prettyName}</div>`;
-    });
+    html += `<div class="det-section"><div class="det-section-title">User Comes From (${s.comesFrom.length})</div>`;
+    s.comesFrom.forEach(f => { const fs = screenMap[f]; if (!fs) return;
+      html += `<div class="det-link" data-id="${f}"><span class="arrow">←</span>
+        <span class="dot" style="background:${fs.color}"></span>${fs.icon} ${fs.prettyName}</div>`; });
     html += '</div>';
   }
 
   content.innerHTML = html;
   content.querySelectorAll('.det-link').forEach(el => {
-    el.addEventListener('click', () => {
-      selectedScreen = el.dataset.id;
-      showDetail(el.dataset.id);
-      render();
-    });
+    el.addEventListener('click', () => { selectedNode = el.dataset.id; showOverviewDetail(el.dataset.id); render(); });
+  });
+  panel.classList.add('visible');
+}
+
+// ── Detail: Drill-down ──────────────────────────────────────────────────
+function showDrillDetail(id) {
+  if (!drillData) return;
+  const n = drillData.nodeMap[id];
+  if (!n) return;
+  const panel = document.getElementById('detail');
+  const content = document.getElementById('det-content');
+
+  let html = `<div class="det-title"><span style="font-size:22px">${n.icon}</span>${n.prettyName}</div>
+    <div class="det-desc">
+      <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;
+        background:${n.color}22;color:${n.color};margin-bottom:4px">${n.typeLabel}</span><br>
+      ${n.kind} · ${n.filePath}
+    </div>`;
+
+  const callsTo = n.callsTo.filter(t => drillData.keptIds.has(t));
+  const calledBy = n.calledBy.filter(t => drillData.keptIds.has(t));
+
+  if (callsTo.length) {
+    html += `<div class="det-section"><div class="det-section-title">Calls / Goes To (${callsTo.length})</div>`;
+    callsTo.forEach(t => { const tn = drillData.nodeMap[t]; if (!tn) return;
+      html += `<div class="det-link" data-id="${t}"><span class="arrow">→</span>
+        <span class="dot" style="background:${tn.color}"></span>${tn.icon} ${tn.prettyName}
+        <span style="color:var(--text3);font-size:9px;margin-left:auto">${tn.typeLabel}</span></div>`; });
+    html += '</div>';
+  }
+  if (calledBy.length) {
+    html += `<div class="det-section"><div class="det-section-title">Called By (${calledBy.length})</div>`;
+    calledBy.forEach(f => { const fn = drillData.nodeMap[f]; if (!fn) return;
+      html += `<div class="det-link" data-id="${f}"><span class="arrow">←</span>
+        <span class="dot" style="background:${fn.color}"></span>${fn.icon} ${fn.prettyName}
+        <span style="color:var(--text3);font-size:9px;margin-left:auto">${fn.typeLabel}</span></div>`; });
+    html += '</div>';
+  }
+
+  content.innerHTML = html;
+  content.querySelectorAll('.det-link').forEach(el => {
+    el.addEventListener('click', () => { selectedNode = el.dataset.id; showDrillDetail(el.dataset.id); render(); });
   });
   panel.classList.add('visible');
 }
 
 document.getElementById('det-close').addEventListener('click', () => {
   document.getElementById('detail').classList.remove('visible');
-  selectedScreen = null; render();
+  selectedNode = null; render();
 });
 
+// ── Breadcrumb ──────────────────────────────────────────────────────────
+function updateBreadcrumb() {
+  const bc = document.getElementById('breadcrumb');
+  if (currentView === 'overview') {
+    bc.innerHTML = '<span class="bc-current">All Features</span>';
+  } else {
+    const s = screenMap[currentView];
+    bc.innerHTML = `<span class="bc-link" id="bc-back">All Features</span>
+      <span class="bc-sep">›</span><span class="bc-current">${s?.icon||'📱'} ${s?.prettyName || currentView} — Internal Flow</span>`;
+    document.getElementById('bc-back').addEventListener('click', showOverview);
+  }
+}
+
 // ── Legend ───────────────────────────────────────────────────────────────
-function buildLegend() {
+function buildLegend(mode) {
   const el = document.getElementById('legend');
-  el.innerHTML = Object.values(FLOW_GROUPS).map(g =>
-    `<div class="leg-item"><span class="leg-box" style="background:${g.color}"></span>${g.label}</div>`
-  ).join('');
+  if (mode === 'overview') {
+    el.innerHTML = Object.values(FLOW_GROUPS).map(g =>
+      `<div class="leg-item"><span class="leg-box" style="background:${g.color}"></span>${g.label}</div>`
+    ).join('') + '<div class="leg-item" style="color:var(--text3);font-size:10px;margin-top:4px">Double-click to drill in</div>';
+  } else {
+    el.innerHTML = Object.entries(COMPONENT_TYPES).map(([k,v]) =>
+      `<div class="leg-item"><span class="leg-box" style="background:${v.color}"></span>${v.icon} ${v.label}</div>`
+    ).join('');
+  }
 }
 
 // ── Controls ────────────────────────────────────────────────────────────
 document.getElementById('btn-load').addEventListener('click', () => {
-  screens = []; screenMap = {}; layout = null; selectedScreen = null;
+  rawData = null; screens = []; screenMap = {}; layout = null; drillData = null;
+  selectedNode = null; currentView = 'overview';
   document.getElementById('app').classList.remove('visible');
   document.getElementById('load-screen').style.display = 'flex';
   document.getElementById('detail').classList.remove('visible');
@@ -616,8 +800,13 @@ document.getElementById('btn-load').addEventListener('click', () => {
 });
 
 function updateStats() {
-  const flows = screens.reduce((s, m) => s + m.goesTo.length, 0);
-  document.getElementById('stats').textContent = `${screens.length} screens · ${flows} flows`;
+  if (currentView === 'overview') {
+    const flows = screens.reduce((s, m) => s + m.goesTo.length, 0);
+    document.getElementById('stats').textContent = `${screens.length} screens · ${flows} flows`;
+  } else {
+    const nodes = drillData ? drillData.nodes.filter(n => drillData.keptIds.has(n.id)).length : 0;
+    document.getElementById('stats').textContent = `${nodes} components`;
+  }
 }
 window.addEventListener('resize', () => { if (layout) render(); });
 </script>
