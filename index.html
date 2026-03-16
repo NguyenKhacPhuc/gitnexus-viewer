@@ -187,36 +187,137 @@ function getGroup(name) {
   return { key: 'other', label: 'Other', color: '#6b7280' };
 }
 
-// ── Internal component classification ───────────────────────────────────
-const COMPONENT_TYPES = {
-  screen:    { icon: '📱', color: '#34d399', label: 'Screen',    keywords: ['screen','page','route','content','view','composable'] },
-  viewmodel: { icon: '🧩', color: '#818cf8', label: 'ViewModel', keywords: ['viewmodel','vm','presenter'] },
-  state:     { icon: '📦', color: '#fbbf24', label: 'State',     keywords: ['state','uistate'] },
-  event:     { icon: '⚡', color: '#fb923c', label: 'Event',     keywords: ['event','action','intent','effect','sideeffect'] },
-  error:     { icon: '❌', color: '#f87171', label: 'Error',     keywords: ['error','failure','exception'] },
-  loading:   { icon: '⏳', color: '#a78bfa', label: 'Loading',   keywords: ['loading','progress','pending'] },
-  success:   { icon: '✅', color: '#34d399', label: 'Success',   keywords: ['success','loaded','ready','result'] },
-  nav:       { icon: '🧭', color: '#38bdf8', label: 'Navigation',keywords: ['navigation','nav','route','destination','navigator','direction'] },
-  repo:      { icon: '💾', color: '#f472b6', label: 'Repository',keywords: ['repository','repo','datasource','usecase','interactor'] },
-  model:     { icon: '📐', color: '#d4d4d4', label: 'Model',     keywords: ['model','dto','entity','data class','response','request'] },
-  component: { icon: '🔲', color: '#6b7280', label: 'Component', keywords: ['component','widget','dialog','sheet','bottom','card','button','item','row','header'] },
+// ── Drill-down node types (BA-friendly) ─────────────────────────────────
+const DRILL_TYPES = {
+  screen:     { icon: '📱', color: '#34d399', label: 'Screen' },
+  action:     { icon: '👆', color: '#fb923c', label: 'User Action' },
+  navigate:   { icon: '🧭', color: '#38bdf8', label: 'Navigation' },
+  loading:    { icon: '⏳', color: '#a78bfa', label: 'Loading' },
+  error:      { icon: '❌', color: '#f87171', label: 'Error State' },
+  success:    { icon: '✅', color: '#34d399', label: 'Success' },
+  data:       { icon: '📡', color: '#f472b6', label: 'Loads Data' },
 };
 
-function classifyComponent(name, kind) {
-  const n = name.toLowerCase();
-  // Priority order: error > loading > success > state > event > nav > viewmodel > screen > repo > model > component
-  const order = ['error','loading','success','state','event','nav','viewmodel','screen','repo','model','component'];
-  for (const type of order) {
-    const t = COMPONENT_TYPES[type];
-    if (t.keywords.some(kw => n.includes(kw))) return type;
-  }
-  // Fallback by kind
-  if (kind === 'Class' || kind === 'Interface') return 'model';
-  if (kind === 'Function') return 'component';
-  return 'component';
+function pretty(name) { return name.split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); }
+
+// ── Extract user actions from onEvent / Event sealed class ──────────────
+function extractUserActions(nodes) {
+  const actions = [];
+  const seen = new Set();
+  nodes.forEach(n => {
+    const content = n.properties?.content || '';
+    const name = n.properties?.name || '';
+    const lname = name.toLowerCase();
+
+    // 1) Sealed class/interface Event members → user actions
+    if (lname.includes('event') && (n.label === 'Class' || n.label === 'Interface')) {
+      // Parse sealed class members: data class Xxx, object Xxx, data object Xxx
+      const memberRe = /(?:data\s+)?(?:class|object)\s+(\w+)/g;
+      let m;
+      while ((m = memberRe.exec(content)) !== null) {
+        const evName = m[1];
+        if (['Companion','Event'].includes(evName)) continue;
+        const friendly = evName.replace(/([a-z])([A-Z])/g, '$1 $2');
+        if (!seen.has(friendly)) { seen.add(friendly); actions.push({ id: `action_${evName}`, label: friendly, source: name }); }
+      }
+    }
+
+    // 2) onEvent lambda — match "is XxxEvent.Yyy" patterns
+    if (content.includes('onEvent') || lname.includes('onevent')) {
+      const isRe = /is\s+\w*Event\.(\w+)/g;
+      let m;
+      while ((m = isRe.exec(content)) !== null) {
+        const friendly = m[1].replace(/([a-z])([A-Z])/g, '$1 $2');
+        if (!seen.has(friendly)) { seen.add(friendly); actions.push({ id: `action_${m[1]}`, label: friendly, source: name }); }
+      }
+    }
+  });
+  return actions;
 }
 
-function pretty(name) { return name.split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); }
+// ── Extract navigation from HandleEffects / Effect sealed class ─────────
+function extractNavigations(nodes, allScreenNames) {
+  const navs = [];
+  const seen = new Set();
+  const screenLower = allScreenNames.map(s => s.toLowerCase());
+
+  nodes.forEach(n => {
+    const content = n.properties?.content || '';
+    const name = n.properties?.name || '';
+
+    // HandleEffects / LaunchedEffect with navigation
+    if (content.toLowerCase().includes('handleeffect') || content.toLowerCase().includes('effect')) {
+      // Match patterns like: navigate("home"), NavigateTo(Screen.Home), navController.navigate, Direction.Home, Route.Home
+      const navRe = /(?:navigate|NavigateTo|direction|route|destination|popBackStack|popUpTo)\s*[\(\.]?\s*["']?(\w+)/gi;
+      let m;
+      while ((m = navRe.exec(content)) !== null) {
+        const dest = m[1];
+        if (['this','it','null','true','false','context','scope'].includes(dest.toLowerCase())) continue;
+        const friendly = dest.replace(/([a-z])([A-Z])/g, '$1 $2');
+        if (!seen.has(dest.toLowerCase())) { seen.add(dest.toLowerCase()); navs.push({ id: `nav_${dest}`, label: friendly, raw: dest }); }
+      }
+
+      // Match "is XxxEffect.NavigateToYyy" or "is XxxEffect.GoToYyy"
+      const effectRe = /is\s+\w*(?:Effect|SideEffect)\.(\w*(?:Navigate|GoTo|Open|Show|Back|Pop|Close)\w*)/gi;
+      while ((m = effectRe.exec(content)) !== null) {
+        const friendly = m[1].replace(/([a-z])([A-Z])/g, '$1 $2');
+        if (!seen.has(m[1].toLowerCase())) { seen.add(m[1].toLowerCase()); navs.push({ id: `nav_${m[1]}`, label: friendly, raw: m[1] }); }
+      }
+    }
+
+    // Also check Effect sealed class for navigation-related effects
+    const lname = name.toLowerCase();
+    if ((lname.includes('effect') || lname.includes('sideeffect')) && (n.label === 'Class' || n.label === 'Interface')) {
+      const memberRe = /(?:data\s+)?(?:class|object)\s+(\w*(?:Navigate|GoTo|Open|Show|Back|Pop|Close|Route)\w*)/gi;
+      let m;
+      while ((m = memberRe.exec(content)) !== null) {
+        const friendly = m[1].replace(/([a-z])([A-Z])/g, '$1 $2');
+        if (!seen.has(m[1].toLowerCase())) { seen.add(m[1].toLowerCase()); navs.push({ id: `nav_${m[1]}`, label: friendly, raw: m[1] }); }
+      }
+    }
+  });
+  return navs;
+}
+
+// ── Extract states (loading, error, success) from State/UiState ─────────
+function extractStates(nodes) {
+  const states = [];
+  const seen = new Set();
+  nodes.forEach(n => {
+    const content = n.properties?.content || '';
+    const name = n.properties?.name || '';
+    const lname = name.toLowerCase();
+
+    if (lname.includes('state') || lname.includes('uistate')) {
+      // Look for boolean/enum fields: isLoading, error, isSuccess, etc.
+      if (/isloading|loading\s*[:=]/i.test(content) && !seen.has('loading'))
+        { seen.add('loading'); states.push({ id: 'state_loading', label: 'Loading', type: 'loading' }); }
+      if (/error|failure|exception/i.test(content) && !seen.has('error'))
+        { seen.add('error'); states.push({ id: 'state_error', label: 'Error', type: 'error' }); }
+      if (/success|loaded|isReady|result/i.test(content) && !seen.has('success'))
+        { seen.add('success'); states.push({ id: 'state_success', label: 'Success', type: 'success' }); }
+    }
+  });
+  return states;
+}
+
+// ── Extract data sources (repository/usecase calls) ─────────────────────
+function extractDataSources(nodes) {
+  const sources = [];
+  const seen = new Set();
+  nodes.forEach(n => {
+    const name = n.properties?.name || '';
+    const lname = name.toLowerCase();
+    if (lname.includes('repository') || lname.includes('usecase') || lname.includes('datasource') || lname.includes('interactor')) {
+      const friendly = name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/Repository|UseCase|DataSource|Interactor/gi, '').trim();
+      if (friendly && !seen.has(friendly.toLowerCase())) {
+        seen.add(friendly.toLowerCase());
+        sources.push({ id: `data_${name}`, label: friendly || name });
+      }
+    }
+  });
+  return sources;
+}
 
 // ── State ───────────────────────────────────────────────────────────────
 let rawData = null;
@@ -350,74 +451,160 @@ function drillInto(featureId) {
   document.getElementById('detail').classList.remove('visible');
   updateBreadcrumb();
 
-  // Collect nodes belonging to this feature (skip File/Folder/Community/Process)
+  // Collect all raw nodes belonging to this feature
   const skipTypes = new Set(['File','Folder','Community','Process']);
-  const featureNodes = [];
-  const featureNodeIds = new Set();
-  const nodeById = {};
-  rawData.nodes.forEach(n => { nodeById[n.id] = n; });
-
+  const featureRawNodes = [];
   rawData.nodes.forEach(n => {
     const fp = n.properties?.filePath || '';
     const parts = fp.split('/');
     if (parts[0] !== 'feature' || parts[1] !== featureId) return;
     if (skipTypes.has(n.label)) return;
-    featureNodeIds.add(n.id);
-    const name = n.properties?.name || n.id;
-    const ctype = classifyComponent(name, n.label);
-    const ct = COMPONENT_TYPES[ctype];
-    featureNodes.push({
-      id: n.id, name, prettyName: pretty(name),
-      kind: n.label, componentType: ctype,
-      icon: ct.icon, color: ct.color, typeLabel: ct.label,
-      filePath: n.properties?.filePath || '',
-      callsTo: [], calledBy: []
+    featureRawNodes.push(n);
+  });
+
+  const allScreenNames = screens.map(s => s.id);
+
+  // Extract BA-friendly elements from source code
+  const userActions = extractUserActions(featureRawNodes);
+  const navigations = extractNavigations(featureRawNodes, allScreenNames);
+  const states = extractStates(featureRawNodes);
+  const dataSources = extractDataSources(featureRawNodes);
+
+  // Build drill-down nodes
+  const drillNodes = [];
+  const dnMap = {};
+
+  // 1) Screen node at the top
+  const screenMeta = SCREEN_META[featureId] || DEFAULT_META;
+  const screenNode = {
+    id: 'screen_' + featureId, label: screenMeta.icon + ' ' + pretty(featureId),
+    prettyName: pretty(featureId), icon: screenMeta.icon, desc: screenMeta.desc,
+    type: 'screen', color: DRILL_TYPES.screen.color, typeLabel: 'Screen',
+    connectsTo: [], connectedFrom: []
+  };
+  drillNodes.push(screenNode); dnMap[screenNode.id] = screenNode;
+
+  // 2) User action nodes (from onEvent)
+  userActions.forEach(a => {
+    const node = {
+      id: a.id, label: '👆 ' + a.label, prettyName: a.label,
+      icon: '👆', desc: 'User taps or triggers: ' + a.label,
+      type: 'action', color: DRILL_TYPES.action.color, typeLabel: 'User Action',
+      connectsTo: [], connectedFrom: []
+    };
+    drillNodes.push(node); dnMap[node.id] = node;
+    // Screen → Action
+    screenNode.connectsTo.push(node.id);
+    node.connectedFrom.push(screenNode.id);
+  });
+
+  // 3) Data source nodes
+  dataSources.forEach(d => {
+    const node = {
+      id: d.id, label: '📡 ' + d.label, prettyName: d.label,
+      icon: '📡', desc: 'Loads data: ' + d.label,
+      type: 'data', color: DRILL_TYPES.data.color, typeLabel: 'Loads Data',
+      connectsTo: [], connectedFrom: []
+    };
+    drillNodes.push(node); dnMap[node.id] = node;
+  });
+
+  // 4) State nodes (loading, error, success)
+  states.forEach(s => {
+    const dt = DRILL_TYPES[s.type];
+    const node = {
+      id: s.id, label: dt.icon + ' ' + s.label, prettyName: s.label,
+      icon: dt.icon, desc: s.label + ' state',
+      type: s.type, color: dt.color, typeLabel: dt.label,
+      connectsTo: [], connectedFrom: []
+    };
+    drillNodes.push(node); dnMap[node.id] = node;
+  });
+
+  // 5) Navigation nodes
+  navigations.forEach(nav => {
+    const node = {
+      id: nav.id, label: '🧭 ' + nav.label, prettyName: nav.label,
+      icon: '🧭', desc: 'Navigates to: ' + nav.label,
+      type: 'navigate', color: DRILL_TYPES.navigate.color, typeLabel: 'Navigation',
+      connectsTo: [], connectedFrom: []
+    };
+    drillNodes.push(node); dnMap[node.id] = node;
+  });
+
+  // ── Smart connections ──
+  // Actions → data sources (actions trigger data loading)
+  if (userActions.length && dataSources.length) {
+    userActions.forEach(a => {
+      dataSources.forEach(d => {
+        dnMap[a.id].connectsTo.push(d.id);
+        dnMap[d.id].connectedFrom.push(a.id);
+      });
     });
-  });
+  }
+  // Actions → states (actions trigger state changes)
+  if (userActions.length && states.length) {
+    userActions.forEach(a => {
+      states.forEach(s => {
+        dnMap[a.id].connectsTo.push(s.id);
+        dnMap[s.id].connectedFrom.push(a.id);
+      });
+    });
+  } else if (states.length) {
+    // Screen → states directly if no actions found
+    states.forEach(s => {
+      screenNode.connectsTo.push(s.id);
+      dnMap[s.id].connectedFrom.push(screenNode.id);
+    });
+  }
+  // Data sources → states
+  if (dataSources.length && states.length) {
+    dataSources.forEach(d => {
+      states.forEach(s => {
+        dnMap[d.id].connectsTo.push(s.id);
+        dnMap[s.id].connectedFrom.push(d.id);
+      });
+    });
+  }
+  // Actions/Screen → navigation (effects trigger navigation)
+  if (navigations.length) {
+    const sources = userActions.length ? userActions : [{ id: screenNode.id }];
+    sources.forEach(src => {
+      navigations.forEach(nav => {
+        dnMap[src.id].connectsTo.push(nav.id);
+        dnMap[nav.id].connectedFrom.push(src.id);
+      });
+    });
+  }
 
-  const fnMap = {};
-  featureNodes.forEach(n => { fnMap[n.id] = n; });
-
-  // Internal edges (CALLS primarily, also IMPORTS/EXTENDS)
-  const flowTypes = new Set(['CALLS','IMPORTS','EXTENDS','IMPLEMENTS']);
-  rawData.relationships.forEach(r => {
-    if (!flowTypes.has(r.type)) return;
-    const sIn = featureNodeIds.has(r.sourceId);
-    const tIn = featureNodeIds.has(r.targetId);
-    if (sIn && tIn && fnMap[r.sourceId] && fnMap[r.targetId]) {
-      if (!fnMap[r.sourceId].callsTo.includes(r.targetId))
-        fnMap[r.sourceId].callsTo.push(r.targetId);
-      if (!fnMap[r.targetId].calledBy.includes(r.sourceId))
-        fnMap[r.targetId].calledBy.push(r.sourceId);
-    }
-  });
-
-  // Deduplicate: group similar components, keep ones with connections or important types
-  const importantTypes = new Set(['screen','viewmodel','state','event','error','loading','success','nav','repo']);
-  const filtered = featureNodes.filter(n =>
-    importantTypes.has(n.componentType) || n.callsTo.length > 0 || n.calledBy.length > 0
-  );
-
-  // If too many, keep top by connections
-  const sorted = filtered.sort((a, b) => (b.callsTo.length + b.calledBy.length) - (a.callsTo.length + a.calledBy.length));
-  const maxNodes = 40;
-  const kept = sorted.slice(0, maxNodes);
-  const keptIds = new Set(kept.map(n => n.id));
+  // If we found nothing from parsing, fall back to showing a simple "No detail available" screen
+  if (drillNodes.length <= 1) {
+    // Just the screen node — add a note
+    const noteNode = {
+      id: 'note_empty', label: '💬 No event/effect patterns found',
+      prettyName: 'No detail found', icon: '💬',
+      desc: 'This feature may not use onEvent/HandleEffects patterns, or the graph data lacks source content.',
+      type: 'action', color: '#6b7280', typeLabel: 'Note',
+      connectsTo: [], connectedFrom: [screenNode.id]
+    };
+    screenNode.connectsTo.push(noteNode.id);
+    drillNodes.push(noteNode); dnMap[noteNode.id] = noteNode;
+  }
 
   // Build dagre layout
   const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: 'TB', nodesep: 20, ranksep: 60, edgesep: 12, marginx: 40, marginy: 40 });
+  g.setGraph({ rankdir: 'TB', nodesep: 30, ranksep: 70, edgesep: 16, marginx: 60, marginy: 60 });
   g.setDefaultEdgeLabel(() => ({}));
 
-  kept.forEach(n => {
-    const w = Math.max(130, n.prettyName.length * 7 + 50);
-    g.setNode(n.id, { width: w, height: 50, type: 'internal' });
+  drillNodes.forEach(n => {
+    const w = Math.max(160, n.prettyName.length * 8 + 60);
+    g.setNode(n.id, { width: w, height: 54 });
   });
 
   const edgeAdded = new Set();
-  kept.forEach(n => {
-    n.callsTo.forEach(t => {
-      if (!keptIds.has(t)) return;
+  drillNodes.forEach(n => {
+    n.connectsTo.forEach(t => {
+      if (!dnMap[t]) return;
       const k = n.id + '|' + t;
       if (edgeAdded.has(k)) return;
       edgeAdded.add(k);
@@ -427,7 +614,7 @@ function drillInto(featureId) {
 
   dagre.layout(g);
   layout = g;
-  drillData = { nodes: kept, nodeMap: fnMap, keptIds };
+  drillData = { nodes: drillNodes, nodeMap: dnMap, keptIds: new Set(drillNodes.map(n => n.id)) };
 
   buildLegend('drill');
   cam = { x: 0, y: 0, zoom: 1 };
@@ -503,8 +690,8 @@ function renderDrill() {
   const sel = selectedNode ? drillData.nodeMap[selectedNode] : null;
   const hov = hoveredNode ? drillData.nodeMap[hoveredNode] : null;
   const hlSet = new Set();
-  if (sel) { hlSet.add(sel.id); sel.callsTo.forEach(d => hlSet.add(d)); sel.calledBy.forEach(d => hlSet.add(d)); }
-  if (hov && !sel) { hlSet.add(hov.id); hov.callsTo.forEach(d => hlSet.add(d)); hov.calledBy.forEach(d => hlSet.add(d)); }
+  if (sel) { hlSet.add(sel.id); sel.connectsTo.forEach(d => hlSet.add(d)); sel.connectedFrom.forEach(d => hlSet.add(d)); }
+  if (hov && !sel) { hlSet.add(hov.id); hov.connectsTo.forEach(d => hlSet.add(d)); hov.connectedFrom.forEach(d => hlSet.add(d)); }
 
   // Edges
   layout.edges().forEach(e => {
@@ -525,7 +712,7 @@ function renderDrill() {
     const dim = hlSet.size > 0 && !hlSet.has(nid);
     const isSel = selectedNode === nid;
     const isHov = hoveredNode === nid;
-    drawInternalNode(nd, n, dim, isSel, isHov);
+    drawDrillNode(nd, n, dim, isSel, isHov);
   });
 }
 
@@ -579,35 +766,41 @@ function drawScreenNode(nd, s, dim, isSel, isHov) {
   ctx.globalAlpha = 1;
 }
 
-function drawInternalNode(nd, n, dim, isSel, isHov) {
-  const x = nd.x - nd.width/2, y = nd.y - nd.height/2, r = 10;
-  if (isSel || isHov) { ctx.shadowColor = n.color + '55'; ctx.shadowBlur = 16; }
+function drawDrillNode(nd, n, dim, isSel, isHov) {
+  const x = nd.x - nd.width/2, y = nd.y - nd.height/2, r = 12;
+  const isScreen = n.type === 'screen';
+
+  if (isSel || isHov) { ctx.shadowColor = n.color + '55'; ctx.shadowBlur = 18; }
   ctx.globalAlpha = dim ? 0.15 : 1;
+
+  // Background
   ctx.beginPath(); roundRect(ctx, x, y, nd.width, nd.height, r);
-  ctx.fillStyle = isSel ? n.color + '18' : '#181830';
+  ctx.fillStyle = isSel ? n.color + '20' : (isScreen ? '#1a2a30' : '#181830');
   ctx.fill();
-  ctx.strokeStyle = isSel ? n.color : isHov ? n.color + '88' : '#252540';
-  ctx.lineWidth = isSel ? 2 : 1; ctx.stroke();
+  ctx.strokeStyle = isSel ? n.color : isHov ? n.color + '88' : (isScreen ? '#2a4a45' : '#252540');
+  ctx.lineWidth = isScreen ? 2 : (isSel ? 2 : 1); ctx.stroke();
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
-  // Left color bar
-  ctx.fillStyle = n.color; ctx.globalAlpha = dim ? 0.05 : 0.7;
+
+  // Top color strip
   ctx.beginPath();
-  ctx.moveTo(x+r,y); ctx.lineTo(x+4,y); ctx.lineTo(x+4,y+nd.height);
-  ctx.lineTo(x+r,y+nd.height); ctx.quadraticCurveTo(x,y+nd.height,x,y+nd.height-r);
-  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.fill();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+nd.width-r,y); ctx.quadraticCurveTo(x+nd.width,y,x+nd.width,y+r);
+  ctx.lineTo(x+nd.width,y+4); ctx.lineTo(x,y+4); ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath(); ctx.fillStyle = n.color; ctx.globalAlpha = dim ? 0.05 : 0.6; ctx.fill();
   ctx.globalAlpha = dim ? 0.15 : 1;
+
   // Icon + text
-  ctx.font = '14px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillText(n.icon, x+10, y+nd.height/2);
+  ctx.font = (isScreen ? '20' : '16') + 'px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(n.icon, x+12, y+nd.height/2);
   ctx.fillStyle = dim ? '#333' : '#eee';
-  ctx.font = '600 11px Inter,Segoe UI,system-ui,sans-serif';
-  const maxChars = Math.floor((nd.width - 50) / 6.5);
+  ctx.font = '600 ' + (isScreen ? '13' : '12') + 'px Inter,Segoe UI,system-ui,sans-serif';
+  const maxChars = Math.floor((nd.width - 55) / 7);
   const label = n.prettyName.length > maxChars ? n.prettyName.slice(0, maxChars) + '…' : n.prettyName;
-  ctx.fillText(label, x+30, y+nd.height/2-6);
+  ctx.fillText(label, x+38, y+nd.height/2 - 7);
+  // Type label (BA-friendly)
   ctx.fillStyle = dim ? '#222' : n.color;
-  ctx.font = '600 8px Inter,Segoe UI,system-ui,sans-serif';
+  ctx.font = '600 9px Inter,Segoe UI,system-ui,sans-serif';
   ctx.globalAlpha = dim ? 0.1 : 0.6;
-  ctx.fillText(n.typeLabel.toUpperCase(), x+30, y+nd.height/2+9);
+  ctx.fillText(n.typeLabel.toUpperCase(), x+38, y+nd.height/2 + 9);
   ctx.globalAlpha = 1;
 }
 
@@ -727,23 +920,23 @@ function showDrillDetail(id) {
     <div class="det-desc">
       <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;
         background:${n.color}22;color:${n.color};margin-bottom:4px">${n.typeLabel}</span><br>
-      ${n.kind} · ${n.filePath}
+      ${n.desc}
     </div>`;
 
-  const callsTo = n.callsTo.filter(t => drillData.keptIds.has(t));
-  const calledBy = n.calledBy.filter(t => drillData.keptIds.has(t));
+  const leadsTo = (n.connectsTo || []).filter(t => drillData.keptIds.has(t));
+  const comesFrom = (n.connectedFrom || []).filter(t => drillData.keptIds.has(t));
 
-  if (callsTo.length) {
-    html += `<div class="det-section"><div class="det-section-title">Calls / Goes To (${callsTo.length})</div>`;
-    callsTo.forEach(t => { const tn = drillData.nodeMap[t]; if (!tn) return;
+  if (leadsTo.length) {
+    html += `<div class="det-section"><div class="det-section-title">Leads To (${leadsTo.length})</div>`;
+    leadsTo.forEach(t => { const tn = drillData.nodeMap[t]; if (!tn) return;
       html += `<div class="det-link" data-id="${t}"><span class="arrow">→</span>
         <span class="dot" style="background:${tn.color}"></span>${tn.icon} ${tn.prettyName}
         <span style="color:var(--text3);font-size:9px;margin-left:auto">${tn.typeLabel}</span></div>`; });
     html += '</div>';
   }
-  if (calledBy.length) {
-    html += `<div class="det-section"><div class="det-section-title">Called By (${calledBy.length})</div>`;
-    calledBy.forEach(f => { const fn = drillData.nodeMap[f]; if (!fn) return;
+  if (comesFrom.length) {
+    html += `<div class="det-section"><div class="det-section-title">Triggered By (${comesFrom.length})</div>`;
+    comesFrom.forEach(f => { const fn = drillData.nodeMap[f]; if (!fn) return;
       html += `<div class="det-link" data-id="${f}"><span class="arrow">←</span>
         <span class="dot" style="background:${fn.color}"></span>${fn.icon} ${fn.prettyName}
         <span style="color:var(--text3);font-size:9px;margin-left:auto">${fn.typeLabel}</span></div>`; });
@@ -783,7 +976,7 @@ function buildLegend(mode) {
       `<div class="leg-item"><span class="leg-box" style="background:${g.color}"></span>${g.label}</div>`
     ).join('') + '<div class="leg-item" style="color:var(--text3);font-size:10px;margin-top:4px">Double-click to drill in</div>';
   } else {
-    el.innerHTML = Object.entries(COMPONENT_TYPES).map(([k,v]) =>
+    el.innerHTML = Object.entries(DRILL_TYPES).map(([k,v]) =>
       `<div class="leg-item"><span class="leg-box" style="background:${v.color}"></span>${v.icon} ${v.label}</div>`
     ).join('');
   }
@@ -804,8 +997,11 @@ function updateStats() {
     const flows = screens.reduce((s, m) => s + m.goesTo.length, 0);
     document.getElementById('stats').textContent = `${screens.length} screens · ${flows} flows`;
   } else {
-    const nodes = drillData ? drillData.nodes.filter(n => drillData.keptIds.has(n.id)).length : 0;
-    document.getElementById('stats').textContent = `${nodes} components`;
+    if (drillData) {
+      const actions = drillData.nodes.filter(n => n.type === 'action').length;
+      const navs = drillData.nodes.filter(n => n.type === 'navigate').length;
+      document.getElementById('stats').textContent = `${actions} user actions · ${navs} navigations`;
+    }
   }
 }
 window.addEventListener('resize', () => { if (layout) render(); });
